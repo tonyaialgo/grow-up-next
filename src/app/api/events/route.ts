@@ -1,0 +1,34 @@
+import { NextRequest, NextResponse } from "next/server";
+import { createAdminClient } from "@/lib/supabase/server";
+
+export async function GET() {
+  try {
+    const supabase = createAdminClient();
+    const { data, error } = await supabase
+      .from("calendar_events")
+      .select("*")
+      .order("date", { ascending: true });
+
+    if (error) throw error;
+    return NextResponse.json(data);
+  } catch {
+    return NextResponse.json([]);
+  }
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const body = await req.json();
+    const supabase = createAdminClient();
+    const { data, error } = await supabase
+      .from("calendar_events")
+      .insert([body])
+      .select()
+      .single();
+
+    if (error) throw error;
+    return NextResponse.json(data, { status: 201 });
+  } catch {
+    return NextResponse.json({ error: "建立失敗" }, { status: 400 });
+  }
+}
