@@ -164,8 +164,22 @@ export default function SchoolsPage() {
   const [bandingFilter, setBandingFilter] = useState("全部");
   const [genderFilter, setGenderFilter] = useState("全部");
   const [showFilters, setShowFilters] = useState(false);
+  const [schools, setSchools] = useState<typeof SAMPLE_SCHOOLS>([]);
 
-  const filteredSchools = SAMPLE_SCHOOLS.filter((school) => {
+  useEffect(() => {
+    fetch('/api/schools')
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data) && data.length > 0) {
+          setSchools(data);
+        } else {
+          setSchools(SAMPLE_SCHOOLS);
+        }
+      })
+      .catch(() => setSchools(SAMPLE_SCHOOLS));
+  }, []);
+
+  const filteredSchools = schools.filter((school) => {
     const matchesSearch =
       school.name.toLowerCase().includes(search.toLowerCase()) ||
       school.name_en.toLowerCase().includes(search.toLowerCase()) ||
