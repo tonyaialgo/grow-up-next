@@ -298,11 +298,11 @@ export default function AssessmentPage() {
   const [step, setStep] = useState<"input" | "result">("input");
   const [gender, setGender] = useState<"boy" | "girl">("boy");
   const [name, setName] = useState("");
-  const [age, setAge] = useState(8);
-  const [height, setHeight] = useState(128);
-  const [weight, setWeight] = useState(27);
-  const [fatherHeight, setFatherHeight] = useState(170);
-  const [motherHeight, setMotherHeight] = useState(158);
+  const [age, setAge] = useState("8");
+  const [height, setHeight] = useState("128");
+  const [weight, setWeight] = useState("27");
+  const [fatherHeight, setFatherHeight] = useState("170");
+  const [motherHeight, setMotherHeight] = useState("158");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<Result | null>(null);
   const [showShortStatureAlert, setShowShortStatureAlert] = useState(false);
@@ -312,7 +312,7 @@ export default function AssessmentPage() {
   const handleAnalyze = async () => {
     setLoading(true);
     await new Promise((r) => setTimeout(r, 2000));
-    const res = analyze(height, weight, age, gender, fatherHeight, motherHeight, name);
+    const res = analyze(Number(height), Number(weight), Number(age), gender, Number(fatherHeight), Number(motherHeight), name);
     setResult(res);
     setShowShortStatureAlert(res.isShortStature);
     setLoading(false);
@@ -484,12 +484,12 @@ export default function AssessmentPage() {
               {/* Sliders */}
               <div className="px-8 py-8 space-y-7">
                 {[
-                  { label: "年齡", unit: "歲", value: age, setter: setAge },
-                  { label: "爸爸身高", unit: "cm", value: fatherHeight, setter: setFatherHeight },
-                  { label: "媽媽身高", unit: "cm", value: motherHeight, setter: setMotherHeight },
-                  { label: "孩子身高", unit: "cm", value: height, setter: setHeight },
-                  { label: "孩子體重", unit: "kg", value: weight, setter: setWeight },
-                ].map(({ label, unit, value, setter }) => (
+                  { label: "年齡", unit: "歲", value: age, setter: setAge, min: 2, max: 20 },
+                  { label: "爸爸身高", unit: "cm", value: fatherHeight, setter: setFatherHeight, min: 100, max: 220 },
+                  { label: "媽媽身高", unit: "cm", value: motherHeight, setter: setMotherHeight, min: 100, max: 200 },
+                  { label: "孩子身高", unit: "cm", value: height, setter: setHeight, min: 50, max: 200 },
+                  { label: "孩子體重", unit: "kg", value: weight, setter: setWeight, min: 10, max: 150 },
+                ].map(({ label, unit, value, setter, min, max }) => (
                   <div key={label}>
                     <div className="flex justify-between items-center mb-3">
                       <label className="text-gray-700 font-bold">{label}</label>
@@ -497,8 +497,27 @@ export default function AssessmentPage() {
                     <div className="flex items-center gap-3">
                       <input
                         type="number"
+                        inputMode="numeric"
                         value={value}
-                        onChange={(e) => setter(Number(e.target.value))}
+                        min={min}
+                        max={max}
+                        onChange={(e) => {
+                          const raw = e.target.value;
+                          // Allow empty input for editing
+                          if (raw === "" || raw === "-") {
+                            setter(raw);
+                            return;
+                          }
+                          const num = Number(raw);
+                          if (!isNaN(num)) {
+                            setter(raw);
+                          }
+                        }}
+                        onBlur={(e) => {
+                          const num = Number(e.target.value);
+                          const clamped = Math.min(max as number, Math.max(min as number, isNaN(num) ? (min as number) : num));
+                          setter(String(clamped));
+                        }}
                         className="w-full px-4 py-3 rounded-xl border-2 border-blue-200 text-xl font-black text-blue-600 text-center focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                       />
                       <span className="text-sm font-medium text-gray-500 whitespace-nowrap">{unit}</span>
@@ -682,7 +701,7 @@ export default function AssessmentPage() {
                     <div className="h-6 bg-gray-200 rounded-full overflow-hidden">
                       <div
                         className={`h-full rounded-full flex items-center justify-end pr-3 ${result.heightGap >= 0 ? "bg-gradient-to-r from-emerald-400 to-teal-400" : "bg-gradient-to-r from-orange-400 to-red-400"}`}
-                        style={{ width: `${Math.min(100, (height / result.expectedHeight) * 100)}%` }}
+                        style={{ width: `${Math.min(100, (Number(height) / result.expectedHeight) * 100)}%` }}
                       >
                         <span className="text-xs font-black text-white">第{result.heightPercentile}百分位</span>
                       </div>
@@ -774,7 +793,7 @@ export default function AssessmentPage() {
           style={{ position: 'fixed', left: '-9999px', top: 0, zIndex: -1, display: 'none' }}
           aria-hidden="true"
         >
-          <ReportCard result={result} height={height} weight={weight} age={age} gender={gender} />
+          <ReportCard result={result} height={Number(height)} weight={Number(weight)} age={Number(age)} gender={gender} />
         </div>
       )}
     </MainLayout>

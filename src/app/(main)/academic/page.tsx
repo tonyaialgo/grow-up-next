@@ -80,7 +80,7 @@ export default function AcademicPage() {
               </p>
               <div className="flex flex-wrap items-center justify-center lg:justify-start gap-4">
                 <Link
-                  href="/academic"
+                  href="/schools"
                   className="group inline-flex items-center gap-3 bg-white text-indigo-600 px-8 py-4 rounded-2xl font-black text-lg shadow-2xl hover:shadow-3xl hover:scale-105 transition-all duration-300"
                 >
                   <BookOpen className="w-6 h-6" />
