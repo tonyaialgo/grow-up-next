@@ -171,7 +171,20 @@ export default function SchoolsPage() {
       .then(res => res.json())
       .then(data => {
         if (Array.isArray(data) && data.length > 0) {
-          setSchools(data);
+          // Transform API fields to match frontend schema
+          const transformed = data.map((s: any) => ({
+            id: s.id,
+            name: s.name || s.name_en || '未知學校',
+            name_en: s.name_en || '',
+            district: s.district || '未分類',
+            banding: s.band ? `Banding ${s.band.replace('Band', '').trim()}` : 'Banding 2',
+            type: s.type || '資助',
+            gender: s.gender || '男女校',
+            image: s.image || 'https://images.unsplash.com/photo-1580582932707-520aed937b7b?w=400&h=300&fit=crop',
+            tags: Array.isArray(s.features) ? s.features.slice(0, 3) : ['優質教育'],
+            highlights: Array.isArray(s.features) ? s.features.slice(0, 3) : ['辦學優良'],
+          }));
+          setSchools(transformed);
         } else {
           setSchools(SAMPLE_SCHOOLS);
         }
