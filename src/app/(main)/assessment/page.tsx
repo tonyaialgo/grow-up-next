@@ -151,8 +151,19 @@ function analyze(height: number, weight: number, age: number, gender: "boy" | "g
 
 // PercentileBar with arrow indicator
 function PercentileBar({ value }: { value: number }) {
-  // Position as percentage (0-100) of the bar width
-  const posPercent = Math.min(100, Math.max(0, value));
+  // Map percentile (1-99) to bar position (2-98) using cumulative percentile ranges
+  // P3=3%, P10=5%, P25=15%, P50=27%, P75=43%, P90=57%, P97=71%, P99=85%
+  const getBarPos = (p: number) => {
+    if (p <= 3) return 2;
+    if (p <= 10) return 5;
+    if (p <= 25) return 15;
+    if (p <= 50) return 27;
+    if (p <= 75) return 43;
+    if (p <= 90) return 57;
+    if (p <= 97) return 71;
+    return 85 + (p - 97) * (13 / 2); // 97-99 → 85-98
+  };
+  const posPercent = Math.min(98, Math.max(2, getBarPos(value)));
 
   return (
     <div className="relative">
