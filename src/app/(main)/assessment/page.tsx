@@ -256,17 +256,6 @@ function ReportCard({ result, height, weight, age, gender }: { result: Result; h
         </div>
       </div>
 
-      {/* BMI */}
-      <div style={{ border: '2px solid #bbf7d0', borderRadius: 16, padding: 16, marginBottom: 12 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-          <span style={{ fontSize: 15, fontWeight: 800 }}>⚖️ BMI</span>
-          <span style={{ fontSize: 24, fontWeight: 900, color: '#059669' }}>{result.bmi}</span>
-        </div>
-        <div style={{ background: result.bmiInfo.bg || '#f0fdf4', borderRadius: 8, padding: '4px 12px', display: 'inline-block', marginBottom: 8 }}>
-          <span style={{ fontSize: 13, fontWeight: 700, color: result.bmiInfo.color || '#059669' }}>{result.bmiInfo.status}</span>
-        </div>
-      </div>
-
       {/* Expected Height */}
       <div style={{ border: '2px solid #fde68a', borderRadius: 16, padding: 16, marginBottom: 12 }}>
         <div style={{ fontSize: 15, fontWeight: 800, marginBottom: 8 }}>📊 遺傳預期身高</div>
@@ -276,6 +265,17 @@ function ReportCard({ result, height, weight, age, gender }: { result: Result; h
         <div style={{ display: 'flex', justifyContent: 'space-between' }}>
           <span>差距</span>
           <span style={{ fontWeight: 800, color: result.heightGap >= 0 ? '#059669' : '#ea580c' }}>{result.heightGap >= 0 ? '+' : ''}{result.heightGap} cm</span>
+        </div>
+      </div>
+
+      {/* BMI */}
+      <div style={{ border: '2px solid #bbf7d0', borderRadius: 16, padding: 16, marginBottom: 12 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+          <span style={{ fontSize: 15, fontWeight: 800 }}>⚖️ BMI</span>
+          <span style={{ fontSize: 24, fontWeight: 900, color: '#059669' }}>{result.bmi}</span>
+        </div>
+        <div style={{ background: result.bmiInfo.bg || '#f0fdf4', borderRadius: 8, padding: '4px 12px', display: 'inline-block', marginBottom: 8 }}>
+          <span style={{ fontSize: 13, fontWeight: 700, color: result.bmiInfo.color || '#059669' }}>{result.bmiInfo.status}</span>
         </div>
       </div>
 
