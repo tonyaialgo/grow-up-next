@@ -1,11 +1,141 @@
 @import "tailwindcss";
 
 :root {
-  --color-primary: #a855f7;
-  --color-primary-dark: #9333ea;
-  --color-accent: #0ea5e9;
+  /* Vibrant rainbow palette for kids education */
+  --color-primary: #6366f1;      /* Indigo - main brand */
+  --color-primary-dark: #4f46e5;
+  --color-accent: #f97316;       /* Orange - energetic accent */
+  --color-accent-alt: #ec4899;   /* Pink - playful accent */
+  
+  /* Section colors */
+  --color-sunny: #fbbf24;        /* Yellow */
+  --color-sky: #06b6d4;          /* Cyan */
+  --color-green: #22c55e;         /* Green */
+  --color-rose: #f43f5e;         /* Rose */
+  --color-violet: #8b5cf6;       /* Violet */
+  
+  /* Gradients */
+  --gradient-hero: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+  --gradient-card-academic: linear-gradient(135deg, #3b82f6 0%, #6366f1 100%);
+  --gradient-card-health: linear-gradient(135deg, #06b6d4 0%, #22c55e 100%);
+  --gradient-card-wellbeing: linear-gradient(135deg, #f97316 0%, #ec4899 100%);
+  --gradient-cta: linear-gradient(135deg, #f97316 0%, #ec4899 100%);
+  --gradient-ai: linear-gradient(135deg, #06b6d4 0%, #3b82f6 100%);
 }
 
 body {
   font-family: "Inter", system-ui, sans-serif;
+}
+
+/* Animated gradient background */
+@keyframes gradient-shift {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+.animate-gradient {
+  background-size: 200% 200%;
+  animation: gradient-shift 8s ease infinite;
+}
+
+/* Floating animation */
+@keyframes float {
+  0%, 100% { transform: translateY(0px) rotate(0deg); }
+  33% { transform: translateY(-15px) rotate(5deg); }
+  66% { transform: translateY(-8px) rotate(-3deg); }
+}
+
+.animate-float {
+  animation: float 6s ease-in-out infinite;
+}
+
+.animate-float-delayed {
+  animation: float 6s ease-in-out infinite;
+  animation-delay: -2s;
+}
+
+.animate-float-delayed-2 {
+  animation: float 6s ease-in-out infinite;
+  animation-delay: -4s;
+}
+
+/* Bounce animation */
+@keyframes bounce-gentle {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+.animate-bounce-gentle {
+  animation: bounce-gentle 2s ease-in-out infinite;
+}
+
+/* Pulse glow */
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 20px rgba(99, 102, 241, 0.3); }
+  50% { box-shadow: 0 0 40px rgba(99, 102, 241, 0.6); }
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 3s ease-in-out infinite;
+}
+
+/* Rainbow text */
+@keyframes rainbow-text {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 200% 50%; }
+}
+
+.text-rainbow {
+  background: linear-gradient(90deg, #f97316, #ec4899, #8b5cf6, #3b82f6, #06b6d4, #22c55e);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: rainbow-text 4s linear infinite;
+}
+
+/* Sparkle effect */
+@keyframes sparkle {
+  0%, 100% { opacity: 0.3; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.2); }
+}
+
+.animate-sparkle {
+  animation: sparkle 2s ease-in-out infinite;
+}
+
+/* Print styles */
+@media print {
+  /* Hide everything except the report */
+  body {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+  
+  /* Hide all navigation and interactive elements */
+  nav, header, footer, .no-print {
+    display: none !important;
+  }
+  
+  /* Make report clean for printing */
+  .print\\:bg-white {
+    background-color: white !important;
+  }
+  
+  .print\\:text-gray-800 {
+    color: #1f2937 !important;
+  }
+  
+  .print\\:shadow-none {
+    box-shadow: none !important;
+  }
+  
+  .print\\:border-0 {
+    border: none !important;
+  }
+  
+  .print\\:py-4 {
+    padding-top: 1rem !important;
+    padding-bottom: 1rem !important;
+  }
 }
