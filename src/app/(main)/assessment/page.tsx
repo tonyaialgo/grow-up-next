@@ -260,11 +260,18 @@ function ReportCard({ result, height, weight, age, gender }: { result: Result; h
         </div>
         {/* Arrow indicator */}
         <div style={{ position: 'relative', height: 30, marginTop: 2 }}>
-          <div style={{ position: 'absolute', left: `${Math.min(98, Math.max(2, result.heightPercentile))}%`, transform: 'translateX(-50%)', top: 0 }}>
+          <div style={{ position: 'absolute', left: `${Math.min(98, Math.max(2, (() => { const p=result.heightPercentile; if(p<=3)return 2; if(p<=10)return 5; if(p<=25)return 15; if(p<=50)return 27; if(p<=75)return 43; if(p<=90)return 57; if(p<=97)return 71; return 85+(p-97)*(13/2); })()))}%`, transform: 'translateX(-50%)', top: 0 }}>
             <div style={{ width: 0, height: 0, borderLeft: '7px solid transparent', borderRight: '7px solid transparent', borderTop: '9px solid #ef4444', margin: '0 auto' }} />
             <div style={{ background: '#ef4444', color: '#fff', fontSize: 11, fontWeight: 800, padding: '2px 8px', borderRadius: 4, whiteSpace: 'nowrap', textAlign: 'center', marginTop: 2 }}>第{result.heightPercentile}%</div>
           </div>
         </div>
+        {/* Short stature warning */}
+        {result.isShortStature && (
+          <div style={{ marginTop: 8, background: '#fef2f2', border: '2px solid #fecaca', borderRadius: 12, padding: '10px 12px' }}>
+            <div style={{ fontSize: 12, fontWeight: 800, color: '#dc2626', marginBottom: 2 }}>⚠️ 矮小症提醒</div>
+            <div style={{ fontSize: 11, color: '#991b1b' }}>身高低於第3百分位，建議諮詢兒科專科醫生</div>
+          </div>
+        )}
       </div>
 
       {/* Expected Height */}
