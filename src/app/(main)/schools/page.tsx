@@ -167,11 +167,10 @@ export default function SchoolsPage() {
   const [schools, setSchools] = useState<typeof SAMPLE_SCHOOLS>([]);
 
   useEffect(() => {
-    fetch('/api/schools')
+    fetch('https://grow-up-next.vercel.app/api/schools', { cache: 'no-store' })
       .then(res => res.json())
       .then(data => {
         if (Array.isArray(data) && data.length > 0) {
-          // Transform API fields to match frontend schema
           const transformed = data.map((s: any) => ({
             id: s.id,
             name: s.name || s.name_en || '未知學校',
