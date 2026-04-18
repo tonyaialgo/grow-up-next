@@ -119,23 +119,23 @@ body {
   }
   
   /* Make report clean for printing */
-  .print\\:bg-white {
+  .print-bg-white {
     background-color: white !important;
   }
   
-  .print\\:text-gray-800 {
+  .print-text-gray-800 {
     color: #1f2937 !important;
   }
   
-  .print\\:shadow-none {
+  .print-shadow-none {
     box-shadow: none !important;
   }
   
-  .print\\:border-0 {
+  .print-border-0 {
     border: none !important;
   }
   
-  .print\\:py-4 {
+  .print-py-4 {
     padding-top: 1rem !important;
     padding-bottom: 1rem !important;
   }
