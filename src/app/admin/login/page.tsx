@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Lock } from "lucide-react";
+import { Lock, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -92,6 +92,16 @@ export default function LoginPage() {
         <p className="text-center text-sm text-gray-400 mt-6">
           Grow Up 管理員系統
         </p>
+
+        <div className="mt-4 text-center">
+          <a
+            href="/"
+            className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 font-medium transition-colors"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            返回前台
+          </a>
+        </div>
       </div>
     </div>
   );
