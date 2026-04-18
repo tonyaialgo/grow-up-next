@@ -4,33 +4,6 @@ import { createAdminClient } from "@/lib/supabase/server";
 const DATA_GOV_API =
   "https://res.data.gov.hk/api/get-download-file?name=https%3A%2F%2Fapplications.edb.gov.hk%2Fdatagovhk%2Fdata%2FSchoolBasicInfo.xml&provider=hk-edb";
 
-interface SchoolBasicInfo {
-  SchoolNameEng: string;
-  SchoolNameChi: string;
-  SchoolNumber: string;
-  SchoolLevelEng: string;
-  SchoolLevelChi: string;
-  SchoolSessionEng: string;
-  SchoolSessionChi: string;
-  StudentGenderEng: string;
-  StudentGenderChi: string;
-  DistrictEng: string;
-  DistrictChi: string;
-  FinanceTypeEng: string;
-  FinanceTypeChi: string;
-  TelephoneNumber: string;
-  SchoolWebSite: string;
-  SchoolAddressEng: string;
-  SchoolAddressChi: string;
-  RegistrationStatusEng: string;
-  RegistrationStatusChi: string;
-  SchoolRegistrationNumber: string;
-}
-
-interface ApiResponse {
-  SchoolBasicInfo?: SchoolBasicInfo | SchoolBasicInfo[];
-}
-
 function mapSchoolLevel(level: string): string {
   if (level.includes("PRIMARY") || level.includes("KINDERGARTEN")) return "小學";
   if (level.includes("SECONDARY")) return "中學";
@@ -47,7 +20,8 @@ function mapSchoolType(gender: string, financeType: string): string {
   if (type.includes("private") || type.includes("私立")) return isCoed ? "私立男女" : "私立";
   if (type.includes("international") || type.includes("國際")) return "國際";
 
-  return gender.includes("CO-ED") || gender.includes("男女") ? "男女" : gender.includes("GIRLS") || gender.includes("女") ? "女校" : "男校";
+  return gender.includes("CO-ED") || gender.includes("男女") ? "男女" :
+         gender.includes("GIRLS") || gender.includes("女") ? "女校" : "男校";
 }
 
 function mapDistrict(district: string): string {
@@ -76,41 +50,39 @@ function mapDistrict(district: string): string {
   return map[district.toUpperCase()] || district;
 }
 
-function inferBand(schoolName: string, type: string): string | null {
-  // Band 1 indicators (top academic schools)
+function inferBand(schoolName: string): string | null {
   const band1Keywords = [
     "diocesan", "dbs", "dg", "st paul", "st. paul",
-    "la salle", "lasalle",
-    "st joseph", "st. joseph",
-    "heep yunn", "heep yun",
-    " Sacred Heart", "skh",
-    "poole", "poon",
-    "st mary", "st. mary",
-    "canossa", "caritas",
-    "heung to", "stvc",
-    "tst", "sgf",
-    "borgio", "stfrancislai",
-    "ming king", "queen's",
-    "columbia", "kingling",
-    "st. coen", "coen",
-    "yuen yuen", "yuan",
+    "la salle", "lasalle", "st joseph", "st. joseph",
+    "heep yunn", "heep yun", "sacred heart", "skh",
+    "poole", "poon", "st mary", "st. mary",
+    "canossa", "caritas", "heung to", "stvc",
+    "tst", "sgf", "borgio", "stfrancislai",
+    "ming king", "queen's", "columbia", "kingling",
+    "st. coen", "coen", "yuen yuen", "yuan",
   ];
-
   const nameLower = schoolName.toLowerCase();
   for (const kw of band1Keywords) {
     if (nameLower.includes(kw)) return "Band 1";
   }
+  return null;
+}
 
-  return null; // Will be null for unknown - manual assignment needed
+function getTag(block: string, tag: string): string {
+  const match = block.match(new RegExp(`<${tag}>([\\s\\S]*?)<\\/${tag}>`, "i"));
+  return match ? match[1].trim() : "";
 }
 
 export async function POST() {
+  const startTime = Date.now();
+
   try {
     const supabase = createAdminClient();
 
-    // 1. Fetch from data.gov.hk
+    // 1. Fetch XML from data.gov.hk
     const response = await fetch(DATA_GOV_API, {
-      next: { revalidate: 0 }, // Always fresh
+      next: { revalidate: 0 },
+      signal: AbortSignal.timeout(120_000), // 2 min timeout
     });
 
     if (!response.ok) {
@@ -123,10 +95,9 @@ export async function POST() {
     const xmlText = await response.text();
 
     // 2. Parse XML
-    // Simple XML parser - extract SchoolBasicInfo blocks
     const schoolBlocks = xmlText.match(/<SchoolBasicInfo>[\s\S]*?<\/SchoolBasicInfo>/gi) || [];
 
-    const schools: Array<{
+    const schoolsToUpsert: Array<{
       registration_number: string;
       name: string;
       name_eng: string;
@@ -141,131 +112,99 @@ export async function POST() {
     }> = [];
 
     for (const block of schoolBlocks) {
-      const getTag = (tag: string) => {
-        const match = block.match(new RegExp(`<${tag}>([\\s\\S]*?)<\\/${tag}>`, "i"));
-        return match ? match[1].trim() : "";
-      };
+      const regStatus = getTag(block, "RegistrationStatusEng");
+      const schoolLevel = getTag(block, "SchoolLevelEng");
+      const financeType = getTag(block, "FinanceTypeEng");
 
-      const regStatus = getTag("RegistrationStatusEng");
-      const schoolLevel = getTag("SchoolLevelEng");
-
-      // Skip government schools (官立) - they said "except government schools"
-      const financeType = getTag("FinanceTypeEng");
+      // Skip government schools and non-registered
       if (financeType.includes("GOVERNMENT")) continue;
-
-      // Skip non-registered schools
       if (!regStatus.includes("REGISTRATION")) continue;
-
-      // Skip kindergartens (we focus on primary + secondary)
       if (schoolLevel.includes("KINDERGARTEN")) continue;
 
-      const schoolName = getTag("SchoolNameChi") || getTag("SchoolNameEng");
+      const schoolName = getTag(block, "SchoolNameChi") || getTag(block, "SchoolNameEng");
       if (!schoolName) continue;
 
-      const regNum = getTag("SchoolRegistrationNumber").trim();
+      const regNum = getTag(block, "SchoolRegistrationNumber").trim();
+      if (!regNum) continue;
 
-      schools.push({
+      schoolsToUpsert.push({
         registration_number: regNum,
         name: schoolName,
-        name_eng: getTag("SchoolNameEng").trim(),
-        type: mapSchoolType(getTag("StudentGenderChi"), getTag("FinanceTypeChi")),
-        district: mapDistrict(getTag("DistrictChi")) || getTag("DistrictEng"),
+        name_eng: getTag(block, "SchoolNameEng").trim(),
+        type: mapSchoolType(getTag(block, "StudentGenderChi"), getTag(block, "FinanceTypeChi")),
+        district: mapDistrict(getTag(block, "DistrictChi")) || getTag(block, "DistrictEng"),
         level: mapSchoolLevel(schoolLevel),
-        address: getTag("SchoolAddressChi"),
-        address_eng: getTag("SchoolAddressEng"),
-        phone: getTag("TelephoneNumber"),
-        website: getTag("SchoolWebSite") || null,
+        address: getTag(block, "SchoolAddressChi"),
+        address_eng: getTag(block, "SchoolAddressEng"),
+        phone: getTag(block, "TelephoneNumber"),
+        website: getTag(block, "SchoolWebSite") || null,
         is_registered: regStatus.includes("REGISTRATION"),
       });
     }
 
-    // 3. Get existing schools to compare
+    // 3. Get existing schools
     const { data: existingSchools } = await supabase
       .from("schools")
-      .select("id, registration_number, name, band");
+      .select("id, registration_number, band");
 
     const existingMap = new Map(
       (existingSchools || []).map((s) => [s.registration_number, s])
     );
 
-    // 4. Upsert: insert new, keep existing band/features if same school
-    let upserted = 0;
-    let skipped = 0;
-    const errors: string[] = [];
-
-    for (const school of schools) {
+    // 4. Build upsert payload - preserve existing band/features
+    const now = new Date().toISOString();
+    const upsertPayload = schoolsToUpsert.map((school) => {
       const existing = existingMap.get(school.registration_number);
+      return {
+        ...school,
+        band: existing?.band || null,
+        features: existing?.features || [],
+        updated_at: now,
+      };
+    });
 
-      if (existing) {
-        // Update existing - preserve band and features if set
-        const { error } = await supabase
-          .from("schools")
-          .update({
-            name: school.name,
-            type: school.type,
-            district: school.district,
-            level: school.level,
-            address: school.address,
-            phone: school.phone,
-            website: school.website,
-            is_registered: school.is_registered,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", existing.id);
+    // 5. Batch upsert (faster than individual updates)
+    const { error: upsertError } = await supabase
+      .from("schools")
+      .upsert(upsertPayload, {
+        onConflict: "registration_number",
+      });
 
-        if (error) errors.push(`Update error for ${school.name}: ${error.message}`);
-        else upserted++;
-      } else {
-        // Insert new school - try to infer band, otherwise null
-        const inferredBand = inferBand(school.name_eng, school.type);
-
-        const { error } = await supabase.from("schools").insert({
-          registration_number: school.registration_number,
-          name: school.name,
-          name_eng: school.name_eng,
-          type: school.type,
-          district: school.district,
-          level: school.level,
-          address: school.address,
-          address_eng: school.address_eng,
-          phone: school.phone,
-          website: school.website,
-          is_registered: school.is_registered,
-          // band starts as null (unknown) - admin needs to assign
-          // features starts as empty array
-        });
-
-        if (error) errors.push(`Insert error for ${school.name}: ${error.message}`);
-        else upserted++;
-      }
+    if (upsertError) {
+      console.error("Batch upsert error:", upsertError);
+      return NextResponse.json(
+        { error: `Upsert failed: ${upsertError.message}` },
+        { status: 500 }
+      );
     }
 
-    // 5. Find removed schools (in DB but not in API response)
-    const apiRegNumbers = new Set(schools.map((s) => s.registration_number));
+    // 6. Mark removed schools as inactive
+    const apiRegNumbers = new Set(schoolsToUpsert.map((s) => s.registration_number));
     const removedSchools = (existingSchools || []).filter(
       (s) => s.registration_number && !apiRegNumbers.has(s.registration_number)
     );
 
-    // Mark removed schools as inactive (not deleting)
-    for (const school of removedSchools) {
+    if (removedSchools.length > 0) {
       await supabase
         .from("schools")
-        .update({ is_registered: false, updated_at: new Date().toISOString() })
-        .eq("id", school.id);
+        .update({ is_registered: false, updated_at: now })
+        .in("id", removedSchools.map((s) => s.id));
     }
+
+    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
 
     return NextResponse.json({
       success: true,
       message: `同步完成`,
-      total: schools.length,
-      upserted,
+      total: schoolsToUpsert.length,
       removed: removedSchools.length,
-      errors: errors.length > 0 ? errors.slice(0, 10) : undefined,
+      elapsed_seconds: parseFloat(elapsed),
     });
   } catch (err) {
     console.error("Sync error:", err);
+    const message = err instanceof Error ? err.message : "同步失敗，請稍後再試。";
     return NextResponse.json(
-      { error: "同步失敗，請稍後再試。" },
+      { error: message },
       { status: 500 }
     );
   }
