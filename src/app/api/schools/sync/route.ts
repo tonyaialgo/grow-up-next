@@ -155,7 +155,7 @@ export async function POST() {
     // 3. Get existing schools
     const { data: existingSchools } = await supabase
       .from("schools")
-      .select("id, registration_number, band");
+      .select("id, registration_number, band, features");
 
     const existingMap = new Map(
       (existingSchools || []).map((s) => [s.registration_number, s])
