@@ -1,11 +1,10 @@
-"use client";
-
-import { useParams } from "next/navigation";
+import { createAdminClient } from "@/lib/supabase/server";
 import MainLayout from "@/components/MainLayout";
-import { GraduationCap, MapPin, Star, Phone, Globe, ArrowLeft, Award } from "lucide-react";
+import type { School } from "@/types";
+import { GraduationCap, MapPin, Phone, Globe, ArrowLeft, Award } from "lucide-react";
 import Link from "next/link";
 
-const SCHOOLS_DB: Record<string, {
+type SchoolDetail = {
   name: string; name_en: string; district: string; banding: string;
   type: string; gender: string; established: string; religion: string;
   address: string; phone: string; website: string;
@@ -13,7 +12,30 @@ const SCHOOLS_DB: Record<string, {
   highlights: string[]; achievements: string[]; curriculum: string[];
   tags: string[];
   image: string;
-}> = {
+};
+
+type RawSchoolDetailRow = Partial<School> & {
+  id: string;
+  name?: string | null;
+  name_en?: string | null;
+  district?: string | null;
+  band?: string | null;
+  type?: string | null;
+  gender?: string | null;
+  features?: string[] | null;
+  image?: string | null;
+  address?: string | null;
+  phone?: string | null;
+  website?: string | null;
+  description?: string | null;
+  established?: string | null;
+  religion?: string | null;
+};
+
+const DEFAULT_IMAGE =
+  "https://images.unsplash.com/photo-1580582932707-520aed937b7b?w=800&h=400&fit=crop";
+
+const SAMPLE_SCHOOLS_DB: Record<string, SchoolDetail> = {
   "1": {
     name: "拔萃女書院", name_en: "Diocesan Girls' School",
     district: "油尖旺", banding: "Banding 1", type: "直資", gender: "女校",
@@ -40,10 +62,96 @@ const SCHOOLS_DB: Record<string, {
   },
 };
 
-export default function SchoolDetailPage() {
-  const params = useParams();
-  const slug = params.slug as string;
-  const school = SCHOOLS_DB[slug];
+function normalizeFeatures(features: RawSchoolDetailRow["features"]) {
+  if (!Array.isArray(features)) {
+    return [];
+  }
+
+  return features.filter(
+    (feature): feature is string =>
+      typeof feature === "string" && feature.trim().length > 0
+  );
+}
+
+function normalizeBanding(band: RawSchoolDetailRow["band"]) {
+  if (!band) {
+    return "Banding 2";
+  }
+
+  const normalized = band
+    .replace(/^Banding\s*/i, "")
+    .replace(/^Band\s*/i, "")
+    .trim();
+
+  return normalized ? `Banding ${normalized}` : "Banding 2";
+}
+
+function transformSchoolDetail(row: RawSchoolDetailRow): SchoolDetail {
+  const features = normalizeFeatures(row.features);
+  const type = row.type || "資助";
+  const level = row.level || "中學";
+
+  return {
+    name: row.name || row.name_en || "未知學校",
+    name_en: row.name_en || "",
+    district: row.district || "未分類",
+    banding: normalizeBanding(row.band),
+    type,
+    gender: row.gender || "男女校",
+    established: row.established || "資料更新中",
+    religion: row.religion || "資料更新中",
+    address: row.address || `${row.district || "香港"}（詳細地址待更新）`,
+    phone: row.phone || "資料更新中",
+    website: row.website || "",
+    description:
+      row.description ||
+      `${row.name || "此學校"}為香港${level}，屬於${type}，詳細資料正在整理中。`,
+    highlights:
+      features.length > 0 ? features.slice(0, 4) : ["辦學優良", "重視全人發展", "校風良好"],
+    achievements:
+      features.length > 0 ? features.slice(0, 3) : ["學生成長表現良好", "積極推動多元學習", "持續優化課程"],
+    curriculum:
+      features.length > 0 ? features.slice(0, 3) : ["核心學科均衡發展", "課外活動多元化", "重視品格教育"],
+    tags: [
+      normalizeBanding(row.band).replace("Banding ", "Band "),
+      type,
+      row.gender || "男女校",
+      level === "小學" ? "英文小學" : "英文中學",
+    ],
+    image: row.image || DEFAULT_IMAGE,
+  };
+}
+
+async function getSchoolDetail(slug: string) {
+  if (SAMPLE_SCHOOLS_DB[slug]) {
+    return SAMPLE_SCHOOLS_DB[slug];
+  }
+
+  try {
+    const supabase = createAdminClient();
+    const { data, error } = await supabase
+      .from("schools")
+      .select("*")
+      .eq("id", slug)
+      .maybeSingle();
+
+    if (error || !data) {
+      return null;
+    }
+
+    return transformSchoolDetail(data as RawSchoolDetailRow);
+  } catch {
+    return null;
+  }
+}
+
+export default async function SchoolDetailPage({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}) {
+  const { slug } = await params;
+  const school = await getSchoolDetail(slug);
 
   if (!school) {
     return (
@@ -90,7 +198,22 @@ export default function SchoolDetailPage() {
               <div className="flex flex-wrap items-center gap-4 text-white/80 text-sm font-medium">
                 <span className="flex items-center gap-1"><MapPin className="w-4 h-4" />{school.address}</span>
                 <span className="flex items-center gap-1"><Phone className="w-4 h-4" />{school.phone}</span>
-                <span className="flex items-center gap-1"><Globe className="w-4 h-4" />{school.website}</span>
+                {school.website ? (
+                  <a
+                    href={school.website}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex items-center gap-1 hover:text-white transition-colors underline"
+                  >
+                    <Globe className="w-4 h-4" />
+                    {school.website}
+                  </a>
+                ) : (
+                  <span className="flex items-center gap-1">
+                    <Globe className="w-4 h-4" />
+                    網站資料更新中
+                  </span>
+                )}
               </div>
             </div>
           </div>
