@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Loader2, RefreshCw } from "lucide-react";
 
 type Config = {
   id: string;
@@ -8,6 +9,12 @@ type Config = {
   model: string;
   openai_base_url: string | null;
   updated_at?: string;
+};
+
+type OpenRouterModelRow = {
+  id: string;
+  name: string;
+  context_length: number | null;
 };
 
 export default function AdminLlmPage() {
@@ -19,12 +26,18 @@ export default function AdminLlmPage() {
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState("");
 
+  const [orModels, setOrModels] = useState<OpenRouterModelRow[]>([]);
+  const [orLoading, setOrLoading] = useState(false);
+  const [orError, setOrError] = useState("");
+  const [orFilter, setOrFilter] = useState("");
+  const [useCustomOrModel, setUseCustomOrModel] = useState(false);
+
   const token =
     typeof window !== "undefined"
       ? localStorage.getItem("admin_token")
       : null;
 
-  const load = async () => {
+  const loadConfig = useCallback(async () => {
     setLoading(true);
     try {
       const res = await fetch("/api/admin/ai/llm-config", {
@@ -40,12 +53,87 @@ export default function AdminLlmPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [token]);
+
+  const fetchOpenRouterModels = useCallback(async () => {
+    setOrLoading(true);
+    setOrError("");
+    try {
+      const res = await fetch("/api/admin/ai/openrouter-models", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setOrError(data.error || "無法載入模型列表");
+        setOrModels([]);
+        return;
+      }
+      const list = Array.isArray(data.models) ? data.models : [];
+      setOrModels(list);
+      if (list.length === 0 && data.error) {
+        setOrError(data.error);
+      }
+    } catch {
+      setOrError("網絡錯誤");
+      setOrModels([]);
+    } finally {
+      setOrLoading(false);
+    }
+  }, [token]);
 
   useEffect(() => {
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    loadConfig();
+  }, [loadConfig]);
+
+  useEffect(() => {
+    if (provider === "openrouter") {
+      fetchOpenRouterModels();
+    }
+  }, [provider, fetchOpenRouterModels]);
+
+  const filteredOrModels = useMemo(() => {
+    const q = orFilter.trim().toLowerCase();
+    if (!q) return orModels;
+    return orModels.filter(
+      (m) =>
+        m.id.toLowerCase().includes(q) || m.name.toLowerCase().includes(q)
+    );
+  }, [orModels, orFilter]);
+
+  /** Keep current selection visible even if search hides it */
+  const selectOrModels = useMemo(() => {
+    const id = model.trim();
+    if (!id) return filteredOrModels;
+    const inFiltered = filteredOrModels.some((m) => m.id === id);
+    if (inFiltered) return filteredOrModels;
+    const full = orModels.find((m) => m.id === id);
+    if (full) return [full, ...filteredOrModels];
+    return [
+      { id, name: id, context_length: null as number | null },
+      ...filteredOrModels,
+    ];
+  }, [filteredOrModels, orModels, model]);
+
+  const currentModelInList = useMemo(
+    () => orModels.some((m) => m.id === model),
+    [orModels, model]
+  );
+
+  useEffect(() => {
+    if (provider !== "openrouter") return;
+    if (useCustomOrModel) return;
+    if (orLoading) return;
+    if (orModels.length > 0 && model.trim() && !currentModelInList) {
+      setUseCustomOrModel(true);
+    }
+  }, [
+    provider,
+    useCustomOrModel,
+    orLoading,
+    orModels,
+    model,
+    currentModelInList,
+  ]);
 
   const save = async () => {
     setSaving(true);
@@ -99,9 +187,10 @@ export default function AdminLlmPage() {
         </label>
         <select
           value={provider}
-          onChange={(e) =>
-            setProvider(e.target.value as Config["provider"])
-          }
+          onChange={(e) => {
+            setProvider(e.target.value as Config["provider"]);
+            setMsg("");
+          }}
           className="w-full rounded-xl border border-gray-200 px-4 py-2.5"
         >
           <option value="openrouter">OpenRouter</option>
@@ -109,15 +198,119 @@ export default function AdminLlmPage() {
           <option value="gemini">Google Gemini（原生）</option>
         </select>
 
-        <label className="mb-2 mt-4 block text-sm font-bold text-gray-700">
-          模型 ID
-        </label>
-        <input
-          value={model}
-          onChange={(e) => setModel(e.target.value)}
-          className="w-full rounded-xl border border-gray-200 px-4 py-2.5"
-          placeholder="例如 google/gemini-2.0-flash-001 或 gpt-4o"
-        />
+        {provider === "openrouter" && (
+          <div className="mt-4 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <label className="text-sm font-bold text-gray-700">
+                模型（由 OpenRouter 自動載入）
+              </label>
+              <button
+                type="button"
+                onClick={() => fetchOpenRouterModels()}
+                disabled={orLoading}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs font-bold text-gray-700 hover:bg-gray-100 disabled:opacity-50"
+              >
+                {orLoading ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-3.5 w-3.5" />
+                )}
+                重新載入列表
+              </button>
+            </div>
+
+            {orError && (
+              <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs font-medium text-amber-900">
+                {orError}
+              </p>
+            )}
+
+            <label className="block text-xs font-medium text-gray-500">
+              搜尋模型名稱或 ID
+            </label>
+            <input
+              type="search"
+              value={orFilter}
+              onChange={(e) => setOrFilter(e.target.value)}
+              placeholder="例如 gemini、gpt、claude…"
+              className="w-full rounded-xl border border-gray-200 px-4 py-2 text-sm"
+              disabled={orLoading || orModels.length === 0}
+            />
+
+            {!useCustomOrModel && orModels.length > 0 && (
+              <>
+                <select
+                  value={
+                    currentModelInList || selectOrModels.some((m) => m.id === model)
+                      ? model
+                      : ""
+                  }
+                  onChange={(e) => setModel(e.target.value)}
+                  className="w-full rounded-xl border border-gray-200 px-3 py-2.5 font-mono text-sm"
+                >
+                  <option value="">— 請選擇模型 —</option>
+                  {selectOrModels.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.name}
+                      {m.context_length
+                        ? ` · ${Math.round(m.context_length / 1000)}k ctx`
+                        : ""}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-400">
+                  共 {orModels.length} 個模型
+                  {orFilter.trim()
+                    ? `，篩選後約 ${filteredOrModels.length} 個（已選模型仍會顯示）`
+                    : ""}
+                  。
+                </p>
+              </>
+            )}
+
+            {(useCustomOrModel || orModels.length === 0) && (
+              <>
+                <label className="block text-sm font-bold text-gray-700">
+                  模型 ID（手動輸入）
+                </label>
+                <input
+                  value={model}
+                  onChange={(e) => setModel(e.target.value)}
+                  className="w-full rounded-xl border border-gray-200 px-4 py-2.5 font-mono text-sm"
+                  placeholder="例如 google/gemini-2.0-flash-001"
+                />
+                {orModels.length > 0 && (
+                  <label className="flex cursor-pointer items-center gap-2 text-sm text-gray-600">
+                    <input
+                      type="checkbox"
+                      checked={!useCustomOrModel}
+                      onChange={(e) => setUseCustomOrModel(!e.target.checked)}
+                    />
+                    改為從上方列表選擇
+                  </label>
+                )}
+              </>
+            )}
+          </div>
+        )}
+
+        {provider !== "openrouter" && (
+          <>
+            <label className="mb-2 mt-4 block text-sm font-bold text-gray-700">
+              模型 ID
+            </label>
+            <input
+              value={model}
+              onChange={(e) => setModel(e.target.value)}
+              className="w-full rounded-xl border border-gray-200 px-4 py-2.5"
+              placeholder={
+                provider === "gemini"
+                  ? "例如 gemini-2.0-flash"
+                  : "例如 gpt-4o-mini"
+              }
+            />
+          </>
+        )}
 
         {provider === "openai" && (
           <>
