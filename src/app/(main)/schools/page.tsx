@@ -167,7 +167,7 @@ export default function SchoolsPage() {
   const [schools, setSchools] = useState<typeof SAMPLE_SCHOOLS>([]);
 
   useEffect(() => {
-    fetch('https://grow-up-next.vercel.app/api/schools', { cache: 'no-store' })
+    fetch('https://growup.hk/api/schools', { cache: 'no-store' })
       .then(res => res.json())
       .then(data => {
         if (Array.isArray(data) && data.length > 0) {
