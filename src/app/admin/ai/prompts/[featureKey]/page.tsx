@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 
@@ -16,25 +16,36 @@ export default function AdminPromptEditPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
+  const [versions, setVersions] = useState<
+    { id: string; created_at: string; note: string | null }[]
+  >([]);
+  const [restoringId, setRestoringId] = useState<string | null>(null);
 
   const token =
     typeof window !== "undefined"
       ? localStorage.getItem("admin_token")
       : null;
 
+  const loadPrompt = useCallback(async () => {
+    const res = await fetch(`/api/admin/ai/prompts/${featureKey}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const data = await res.json();
+    if (res.ok && data.prompt) {
+      setSystemPrompt(data.prompt.system_prompt);
+      setUserTemplate(data.prompt.user_template || "");
+    }
+    if (res.ok && Array.isArray(data.versions)) {
+      setVersions(data.versions);
+    }
+  }, [featureKey, token]);
+
   useEffect(() => {
     (async () => {
-      const res = await fetch(`/api/admin/ai/prompts/${featureKey}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await res.json();
-      if (res.ok && data.prompt) {
-        setSystemPrompt(data.prompt.system_prompt);
-        setUserTemplate(data.prompt.user_template || "");
-      }
+      await loadPrompt();
       setLoading(false);
     })();
-  }, [featureKey, token]);
+  }, [loadPrompt]);
 
   const save = async () => {
     setSaving(true);
@@ -52,8 +63,34 @@ export default function AdminPromptEditPage() {
         }),
       });
       setNote("");
+      await loadPrompt();
     } finally {
       setSaving(false);
+    }
+  };
+
+  const restoreVersion = async (versionId: string) => {
+    setRestoringId(versionId);
+    try {
+      const res = await fetch(
+        `/api/admin/ai/prompts/${featureKey}/restore`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ versionId }),
+        }
+      );
+      const data = await res.json();
+      if (res.ok && data.system_prompt) {
+        setSystemPrompt(data.system_prompt);
+        setUserTemplate(data.user_template || "");
+      }
+      await loadPrompt();
+    } finally {
+      setRestoringId(null);
     }
   };
 
@@ -134,6 +171,36 @@ export default function AdminPromptEditPage() {
         >
           {saving ? "儲存中…" : "儲存並寫入版本紀錄"}
         </button>
+
+        {versions.length > 0 && (
+          <div className="mt-8 border-t border-gray-100 pt-6">
+            <h2 className="mb-3 font-black text-gray-900">版本紀錄</h2>
+            <p className="mb-3 text-sm text-gray-600">
+              點「還原」會將該版本套回為目前生效提示詞，並新增一筆還原紀錄。
+            </p>
+            <ul className="max-h-56 space-y-2 overflow-y-auto text-sm">
+              {versions.map((v) => (
+                <li
+                  key={v.id}
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-gray-100 bg-gray-50 px-3 py-2"
+                >
+                  <span className="font-mono text-xs text-gray-500">
+                    {new Date(v.created_at).toLocaleString()}
+                    {v.note ? ` · ${v.note}` : ""}
+                  </span>
+                  <button
+                    type="button"
+                    disabled={restoringId === v.id}
+                    onClick={() => void restoreVersion(v.id)}
+                    className="rounded-lg bg-gray-200 px-3 py-1 text-xs font-bold text-gray-800 hover:bg-gray-300 disabled:opacity-50"
+                  >
+                    {restoringId === v.id ? "還原中…" : "還原此版本"}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </div>
 
       <div className="rounded-2xl border border-amber-100 bg-amber-50/50 p-6">
