@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { GraduationCap, Calendar, Lightbulb, BookOpen, Plus, RefreshCw, CheckCircle, XCircle, Loader2 } from "lucide-react";
+import { GraduationCap, Calendar, Lightbulb, BookOpen, RefreshCw, CheckCircle, XCircle, Loader2, Clock, AlertTriangle } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 
@@ -12,13 +12,24 @@ interface Stats {
   totalGuides: number;
 }
 
+interface SyncLog {
+  id: number;
+  status: string;
+  total_records: number | null;
+  removed_records: number | null;
+  error_message: string | null;
+  started_at: string;
+  completed_at: string | null;
+  elapsed_seconds: number | null;
+  created_at: string;
+}
+
 export default function DashboardPage() {
   const [stats, setStats] = useState<Stats>({ totalSchools: 0, totalEvents: 0, totalTips: 0, totalGuides: 0 });
   const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetchStats();
-  }, []);
+  const [syncLogs, setSyncLogs] = useState<SyncLog[]>([]);
+  const [syncing, setSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState<{ success: boolean; message: string } | null>(null);
 
   const fetchStats = async () => {
     try {
@@ -42,8 +53,20 @@ export default function DashboardPage() {
     }
   };
 
-  const [syncing, setSyncing] = useState(false);
-  const [syncResult, setSyncResult] = useState<{ success: boolean; message: string } | null>(null);
+  const fetchSyncLogs = async () => {
+    try {
+      const res = await fetch("/api/schools/sync");
+      const data = await res.json();
+      if (data.logs) setSyncLogs(data.logs);
+    } catch {
+      // ignore
+    }
+  };
+
+  useEffect(() => {
+    fetchStats();
+    fetchSyncLogs();
+  }, []);
 
   const handleSync = async () => {
     if (!confirm("即將從教育局 data.gov.hk API 同步學校資料。現有學校的資料會更新，新學校會加入，已停辦的學校會標記為停辦。是否繼續？")) return;
@@ -55,8 +78,10 @@ export default function DashboardPage() {
       if (res.ok) {
         setSyncResult({ success: true, message: data.message || `同步成功！共 ${data.total} 間學校` });
         fetchStats();
+        fetchSyncLogs();
       } else {
         setSyncResult({ success: false, message: data.error || "同步失敗" });
+        fetchSyncLogs();
       }
     } catch {
       setSyncResult({ success: false, message: "網絡錯誤，請稍後再試" });
@@ -140,17 +165,74 @@ export default function DashboardPage() {
             )}
           </button>
         </div>
+
+        {/* Latest result */}
         {syncResult && (
           <div className={cn(
-            "flex items-center gap-2 p-4 rounded-xl text-sm font-medium",
+            "flex items-center gap-2 p-4 rounded-xl text-sm font-medium mb-4",
             syncResult.success ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"
           )}>
             {syncResult.success ? <CheckCircle className="w-4 h-4 flex-shrink-0" /> : <XCircle className="w-4 h-4 flex-shrink-0" />}
             {syncResult.message}
           </div>
         )}
-        <div className="mt-3 text-xs text-gray-400">
-          資料來源：教育局學校註冊資料（每日更新）· 每月有機會新增或移除學校
+
+        {/* Sync history */}
+        {syncLogs.length > 0 ? (
+          <div>
+            <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+              <Clock className="w-4 h-4" /> 同步歷史
+            </h3>
+            <div className="space-y-2">
+              {syncLogs.slice(0, 5).map((log) => {
+                const startDate = new Date(log.started_at);
+                const dateStr = startDate.toLocaleDateString("zh-HK", { month: "short", day: "numeric" });
+                const timeStr = startDate.toLocaleTimeString("zh-HK", { hour: "2-digit", minute: "2-digit" });
+                const isSuccess = log.status === "success";
+
+                return (
+                  <div key={log.id} className={cn(
+                    "flex items-center gap-3 p-3 rounded-xl text-sm",
+                    isSuccess ? "bg-emerald-50" : "bg-red-50"
+                  )}>
+                    <div className={cn(
+                      "w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0",
+                      isSuccess ? "bg-emerald-100" : "bg-red-100"
+                    )}>
+                      {isSuccess
+                        ? <CheckCircle className="w-4 h-4 text-emerald-600" />
+                        : <AlertTriangle className="w-4 h-4 text-red-600" />
+                      }
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-gray-900">{dateStr} {timeStr}</span>
+                        <span className={cn(
+                          "px-2 py-0.5 rounded text-xs font-semibold",
+                          isSuccess ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"
+                        )}>
+                          {isSuccess ? "成功" : "失敗"}
+                        </span>
+                      </div>
+                      <div className="text-gray-500 text-xs mt-0.5">
+                        {isSuccess
+                          ? `${log.total_records} 間學校${log.removed_records ? ` · ${log.removed_records} 間停辦` : ""}${log.elapsed_seconds ? ` · ${log.elapsed_seconds}s` : ""}`
+                          : log.error_message || "未知錯誤"
+                        }
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ) : (
+          <p className="text-sm text-gray-400 text-center py-4">暫無同步記錄</p>
+        )}
+
+        <div className="mt-4 pt-4 border-t border-gray-100 text-xs text-gray-400 flex items-center justify-between">
+          <span>資料來源：教育局學校註冊資料（每日更新）</span>
+          <span>每日凌晨 3:00 自動同步</span>
         </div>
       </div>
 

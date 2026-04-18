@@ -50,34 +50,48 @@ function mapDistrict(district: string): string {
   return map[district.toUpperCase()] || district;
 }
 
-function inferBand(schoolName: string): string | null {
-  const band1Keywords = [
-    "diocesan", "dbs", "dg", "st paul", "st. paul",
-    "la salle", "lasalle", "st joseph", "st. joseph",
-    "heep yunn", "heep yun", "sacred heart", "skh",
-    "poole", "poon", "st mary", "st. mary",
-    "canossa", "caritas", "heung to", "stvc",
-    "tst", "sgf", "borgio", "stfrancislai",
-    "ming king", "queen's", "columbia", "kingling",
-    "st. coen", "coen", "yuen yuen", "yuan",
-  ];
-  const nameLower = schoolName.toLowerCase();
-  for (const kw of band1Keywords) {
-    if (nameLower.includes(kw)) return "Band 1";
-  }
-  return null;
-}
-
 function getTag(block: string, tag: string): string {
   const match = block.match(new RegExp(`<${tag}>([\\s\\S]*?)<\\/${tag}>`, "i"));
   return match ? match[1].trim() : "";
 }
 
+// GET: Return sync history
+export async function GET() {
+  try {
+    const supabase = createAdminClient();
+    const { data: logs } = await supabase
+      .from("sync_logs")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(10);
+
+    return NextResponse.json({ logs: logs || [] });
+  } catch (err) {
+    console.error("Error fetching sync logs:", err);
+    return NextResponse.json({ logs: [] });
+  }
+}
+
+// POST: Run school data sync
 export async function POST() {
   const startTime = Date.now();
+  let logId: number | null = null;
 
   try {
     const supabase = createAdminClient();
+
+    // Record sync start
+    const { data: logRecord } = await supabase
+      .from("sync_logs")
+      .insert({
+        sync_type: "schools",
+        status: "success", // placeholder, will update
+        started_at: new Date().toISOString(),
+      })
+      .select("id")
+      .single();
+
+    logId = logRecord?.id ?? null;
 
     // 1. Fetch XML from data.gov.hk
     const response = await fetch(DATA_GOV_API, {
@@ -86,10 +100,7 @@ export async function POST() {
     });
 
     if (!response.ok) {
-      return NextResponse.json(
-        { error: `Failed to fetch from data.gov.hk: ${response.status}` },
-        { status: 500 }
-      );
+      throw new Error(`Failed to fetch from data.gov.hk: ${response.status}`);
     }
 
     const xmlText = await response.text();
@@ -116,7 +127,6 @@ export async function POST() {
       const schoolLevel = getTag(block, "SchoolLevelEng");
       const financeType = getTag(block, "FinanceTypeEng");
 
-      // Skip government schools and non-registered
       if (financeType.includes("GOVERNMENT")) continue;
       if (!regStatus.includes("REGISTRATION")) continue;
       if (schoolLevel.includes("KINDERGARTEN")) continue;
@@ -163,7 +173,7 @@ export async function POST() {
       };
     });
 
-    // 5. Batch upsert (faster than individual updates)
+    // 5. Batch upsert
     const { error: upsertError } = await supabase
       .from("schools")
       .upsert(upsertPayload, {
@@ -171,11 +181,7 @@ export async function POST() {
       });
 
     if (upsertError) {
-      console.error("Batch upsert error:", upsertError);
-      return NextResponse.json(
-        { error: `Upsert failed: ${upsertError.message}` },
-        { status: 500 }
-      );
+      throw new Error(`Upsert failed: ${upsertError.message}`);
     }
 
     // 6. Mark removed schools as inactive
@@ -191,18 +197,48 @@ export async function POST() {
         .in("id", removedSchools.map((s) => s.id));
     }
 
-    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+    const elapsed = (Date.now() - startTime) / 1000;
+
+    // Update log as success
+    if (logId) {
+      await supabase
+        .from("sync_logs")
+        .update({
+          status: "success",
+          total_records: schoolsToUpsert.length,
+          removed_records: removedSchools.length,
+          completed_at: now,
+          elapsed_seconds: elapsed,
+        })
+        .eq("id", logId);
+    }
 
     return NextResponse.json({
       success: true,
       message: `同步完成`,
       total: schoolsToUpsert.length,
       removed: removedSchools.length,
-      elapsed_seconds: parseFloat(elapsed),
+      elapsed_seconds: parseFloat(elapsed.toFixed(1)),
     });
   } catch (err) {
     console.error("Sync error:", err);
     const message = err instanceof Error ? err.message : "同步失敗，請稍後再試。";
+    const now = new Date().toISOString();
+    const elapsed = (Date.now() - startTime) / 1000;
+
+    // Update log as failed
+    if (logId) {
+      await supabase
+        .from("sync_logs")
+        .update({
+          status: "failed",
+          error_message: message,
+          completed_at: now,
+          elapsed_seconds: elapsed,
+        })
+        .eq("id", logId);
+    }
+
     return NextResponse.json(
       { error: message },
       { status: 500 }
