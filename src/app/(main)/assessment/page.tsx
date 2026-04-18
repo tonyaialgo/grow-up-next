@@ -225,6 +225,9 @@ function BMIBar({ position }: { position: number }) {
 
 // Report Card for download (off-screen capture target)
 function ReportCard({ result, height, weight, age, gender }: { result: Result; height: number; weight: number; age: number; gender: "boy" | "girl" }) {
+  const isBMIWarning = result.bmiInfo.status === '體重過輕' || result.bmiInfo.status === '體重過重';
+  const isBMICritical = result.bmiInfo.status === '體重過輕' && result.bmi < 13;
+
   return (
     <div style={{ width: 420, padding: 32, fontFamily: 'system-ui, -apple-system, sans-serif', background: '#fff', borderRadius: 24 }}>
       {/* Header */}
@@ -247,7 +250,12 @@ function ReportCard({ result, height, weight, age, gender }: { result: Result; h
 
       {/* Height Percentile */}
       <div style={{ border: '2px solid #bfdbfe', borderRadius: 16, padding: 16, marginBottom: 12 }}>
-        <div style={{ fontSize: 15, fontWeight: 800, marginBottom: 8 }}>📏 身高百分位</div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+          <div style={{ fontSize: 15, fontWeight: 800 }}>📏 身高百分位</div>
+          <span style={{ fontSize: 12, fontWeight: 800, padding: '3px 10px', borderRadius: 20, background: result.isShortStature ? '#dc2626' : '#d1fae5', color: result.isShortStature ? '#fff' : '#059669' }}>
+            {result.isShortStature ? '⚠️ 需關注' : '✅ 正常'}
+          </span>
+        </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
           <span style={{ fontSize: 28, fontWeight: 900, color: '#1d4ed8' }}>第 {result.heightPercentile} 百分位</span>
           <span style={{ fontSize: 13, fontWeight: 700, color: result.isShortStature ? '#dc2626' : '#059669' }}>{result.heightStatus}</span>
@@ -274,26 +282,57 @@ function ReportCard({ result, height, weight, age, gender }: { result: Result; h
         )}
       </div>
 
-      {/* Expected Height */}
-      <div style={{ border: '2px solid #fde68a', borderRadius: 16, padding: 16, marginBottom: 12 }}>
-        <div style={{ fontSize: 15, fontWeight: 800, marginBottom: 8 }}>📊 遺傳預期身高</div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-          <span>預期身高</span><span style={{ fontWeight: 800 }}>{result.expectedHeight} cm</span>
-        </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-          <span>差距</span>
-          <span style={{ fontWeight: 800, color: result.heightGap >= 0 ? '#059669' : '#ea580c' }}>{result.heightGap >= 0 ? '+' : ''}{result.heightGap} cm</span>
-        </div>
-      </div>
-
-      {/* BMI */}
+      {/* BMI - swapped position with Expected Height section */}
       <div style={{ border: '2px solid #bbf7d0', borderRadius: 16, padding: 16, marginBottom: 12 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-          <span style={{ fontSize: 15, fontWeight: 800 }}>⚖️ BMI</span>
-          <span style={{ fontSize: 24, fontWeight: 900, color: '#059669' }}>{result.bmi}</span>
+          <span style={{ fontSize: 15, fontWeight: 800 }}>⚖️ BMI 健康指標</span>
+          {isBMIWarning && (
+            <span style={{ fontSize: 11, fontWeight: 800, padding: '3px 10px', borderRadius: 20, background: isBMICritical ? '#dc2626' : '#f59e0b', color: '#fff' }}>
+              {isBMICritical ? '⚠️ 需醫療關注' : '⚠️ 需關注'}
+            </span>
+          )}
         </div>
-        <div style={{ background: result.bmiInfo.bg || '#f0fdf4', borderRadius: 8, padding: '4px 12px', display: 'inline-block', marginBottom: 8 }}>
-          <span style={{ fontSize: 13, fontWeight: 700, color: result.bmiInfo.color || '#059669' }}>{result.bmiInfo.status}</span>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+          <span style={{ fontSize: 24, fontWeight: 900, color: '#059669' }}>{result.bmi}</span>
+          <div style={{ background: result.bmiInfo.bg || '#f0fdf4', borderRadius: 8, padding: '4px 12px' }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: result.bmiInfo.color || '#059669' }}>{result.bmiInfo.status}</span>
+          </div>
+        </div>
+        {/* BMI warning alert */}
+        {isBMIWarning && (
+          <div style={{ marginTop: 8, background: isBMICritical ? '#fef2f2' : '#fffbeb', border: `2px solid ${isBMICritical ? '#fecaca' : '#fde68a'}`, borderRadius: 12, padding: '10px 12px' }}>
+            <div style={{ fontSize: 12, fontWeight: 800, color: isBMICritical ? '#dc2626' : '#d97706', marginBottom: 2 }}>
+              {isBMICritical ? '⚠️ 需醫療關注' : '⚠️ 需關注'}
+            </div>
+            <div style={{ fontSize: 11, color: isBMICritical ? '#991b1b' : '#92400e' }}>
+              {result.bmiInfo.status === '體重過輕' ? 'BMI 偏低，建議諮詢醫生評估營養狀況' : 'BMI 偏高，建議調整飲食並增加運動'}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Expected Height vs Actual - swapped with BMI above */}
+      <div style={{ border: '2px solid #fde68a', borderRadius: 16, padding: 16, marginBottom: 12 }}>
+        <div style={{ fontSize: 15, fontWeight: 800, marginBottom: 8 }}>📊 預期身高 vs 實際身高</div>
+        <div style={{ marginBottom: 8 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
+            <span style={{ fontSize: 12, color: '#92400e' }}>遺傳預期</span>
+            <span style={{ fontSize: 12, fontWeight: 800, color: '#92400e' }}>{result.expectedHeight} cm</span>
+          </div>
+          <div style={{ height: 10, background: '#fde68a', borderRadius: 5, overflow: 'hidden' }}>
+            <div style={{ width: '100%', height: '100%', background: 'linear-gradient(to right, #fbbf24, #f97316)', borderRadius: 5 }} />
+          </div>
+        </div>
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
+            <span style={{ fontSize: 12, color: result.heightGap < 0 ? '#ea580c' : '#059669' }}>實際身高</span>
+            <span style={{ fontSize: 12, fontWeight: 800, color: result.heightGap < 0 ? '#ea580c' : '#059669' }}>
+              {height} cm ({result.heightGap < 0 ? `落後 ${Math.abs(result.heightGap)} cm` : `超標 ${result.heightGap} cm`})
+            </span>
+          </div>
+          <div style={{ height: 10, background: '#e5e7eb', borderRadius: 5, overflow: 'hidden' }}>
+            <div style={{ width: `${Math.min(100, (Number(height) / result.expectedHeight) * 100)}%`, height: '100%', background: result.heightGap >= 0 ? 'linear-gradient(to right, #34d399, #2dd4bf)' : 'linear-gradient(to right, #fb923c, #ef4444)', borderRadius: 5 }} />
+          </div>
         </div>
       </div>
 
@@ -325,6 +364,7 @@ export default function AssessmentPage() {
   const [result, setResult] = useState<Result | null>(null);
   const [showShortStatureAlert, setShowShortStatureAlert] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [showISSModal, setShowISSModal] = useState(false);
 
   // Mark card as ready for capture after it renders
   const handleAnalyze = async () => {
@@ -521,14 +561,17 @@ export default function AssessmentPage() {
                         max={max}
                         onChange={(e) => {
                           const raw = e.target.value;
-                          // Allow empty input for editing
+                          // Allow empty or negative sign for editing
                           if (raw === "" || raw === "-") {
                             setter(raw);
                             return;
                           }
-                          const num = Number(raw);
+                          // Normalize: remove leading zeros (e.g. "05" -> "5")
+                          // But preserve caret position relative to digits
+                          const normalized = raw.replace(/^0+/, '') || '0';
+                          const num = Number(normalized);
                           if (!isNaN(num)) {
-                            setter(raw);
+                            setter(normalized);
                           }
                         }}
                         onBlur={(e) => {
@@ -664,34 +707,7 @@ export default function AssessmentPage() {
               </div>
             </div>
 
-            {/* 2. BMI 健康指標 */}
-            <div className="bg-white rounded-3xl shadow-xl border-2 border-emerald-100 overflow-hidden print:shadow-none print:border-0">
-              <div className="bg-gradient-to-r from-emerald-500 to-teal-600 px-6 py-4 print:bg-none">
-                <h2 className="text-white font-black text-lg print:text-gray-800">⚖️ BMI 健康指標</h2>
-              </div>
-              <div className="p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <div className="text-sm text-gray-500 font-medium">BMI 指數</div>
-                    <div className="text-5xl font-black text-emerald-700">{result.bmi}</div>
-                  </div>
-                  <div className={`px-4 py-2 rounded-full font-black text-sm ${result.bmiInfo.bg} ${result.bmiInfo.color}`}>
-                    {result.bmiInfo.status}
-                  </div>
-                </div>
-                <div className="mb-3">
-                  <BMIBar position={result.bmiChartPos} />
-                  <div className="flex justify-between text-xs text-gray-400 mt-1 font-medium">
-                    <span>過輕</span><span>標準下限</span><span>標準</span><span>標準上限</span><span>過重</span>
-                  </div>
-                </div>
-                <div className="text-xs text-gray-400 font-medium">
-                  參考值（{age}歲{gender === "boy" ? "男" : "女"}）：正常 BMI 範圍 {result.bmiInfo.p3} - {result.bmiInfo.p97}
-                </div>
-              </div>
-            </div>
-
-            {/* 3. 預期 vs 實際 */}
+            {/* 2. 預期身高 vs 實際身高 (swapped with BMI) */}
             <div className="bg-white rounded-3xl shadow-xl border-2 border-amber-100 overflow-hidden print:shadow-none print:border-0">
               <div className="bg-gradient-to-r from-amber-400 to-orange-500 px-6 py-4 print:bg-none">
                 <h2 className="text-white font-black text-lg print:text-gray-800">📊 預期身高 vs 實際身高</h2>
@@ -734,6 +750,33 @@ export default function AssessmentPage() {
               </div>
             </div>
 
+            {/* 3. BMI 健康指標 (swapped with Expected vs Actual) */}
+            <div className="bg-white rounded-3xl shadow-xl border-2 border-emerald-100 overflow-hidden print:shadow-none print:border-0">
+              <div className="bg-gradient-to-r from-emerald-500 to-teal-600 px-6 py-4 print:bg-none">
+                <h2 className="text-white font-black text-lg print:text-gray-800">⚖️ BMI 健康指標</h2>
+              </div>
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <div className="text-sm text-gray-500 font-medium">BMI 指數</div>
+                    <div className="text-5xl font-black text-emerald-700">{result.bmi}</div>
+                  </div>
+                  <div className={`px-4 py-2 rounded-full font-black text-sm ${result.bmiInfo.bg} ${result.bmiInfo.color}`}>
+                    {result.bmiInfo.status}
+                  </div>
+                </div>
+                <div className="mb-3">
+                  <BMIBar position={result.bmiChartPos} />
+                  <div className="flex justify-between text-xs text-gray-400 mt-1 font-medium">
+                    <span>過輕</span><span>標準下限</span><span>標準</span><span>標準上限</span><span>過重</span>
+                  </div>
+                </div>
+                <div className="text-xs text-gray-400 font-medium">
+                  參考值（{age}歲{gender === "boy" ? "男" : "女"}）：正常 BMI 範圍 {result.bmiInfo.p3} - {result.bmiInfo.p97}
+                </div>
+              </div>
+            </div>
+
             {/* 4. 每日建議 */}
             <div className="bg-white rounded-3xl shadow-xl border-2 border-purple-100 overflow-hidden print:shadow-none print:border-0">
               <div className="bg-gradient-to-r from-purple-500 to-pink-500 px-6 py-4 print:bg-none">
@@ -768,11 +811,87 @@ export default function AssessmentPage() {
                     及時就醫是改善成年身高的關鍵！
                   </p>
                   <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                    <button className="flex items-center justify-center gap-2 bg-white text-red-600 py-3 px-6 rounded-2xl font-black text-lg shadow-lg hover:shadow-xl transition-all">
+                    <button
+                      onClick={() => window.open("https://wa.me/85251234567?text=" + encodeURIComponent("你好，我想為孩子預約生長發育專科諮詢。"), "_blank")}
+                      className="flex items-center justify-center gap-2 bg-white text-red-600 py-3 px-6 rounded-2xl font-black text-lg shadow-lg hover:shadow-xl transition-all"
+                    >
                       立即諮詢
                     </button>
-                    <button className="flex items-center justify-center gap-2 bg-white/20 text-white py-3 px-6 rounded-2xl font-bold text-lg hover:bg-white/30 transition-all">
+                    <button
+                      onClick={() => setShowISSModal(true)}
+                      className="flex items-center justify-center gap-2 bg-white/20 text-white py-3 px-6 rounded-2xl font-bold text-lg hover:bg-white/30 transition-all"
+                    >
                       了解矮小症
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ISS Info Modal */}
+            {showISSModal && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+                onClick={(e) => { if (e.target === e.currentTarget) setShowISSModal(false); }}
+              >
+                <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden">
+                  <div className="bg-gradient-to-r from-red-500 to-pink-500 px-6 py-5">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-xl font-black text-white">🏥 認識矮小症</h3>
+                      <button
+                        onClick={() => setShowISSModal(false)}
+                        className="text-white/80 hover:text-white text-2xl leading-none font-light transition-colors"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  </div>
+                  <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+                    <div className="bg-red-50 border border-red-200 rounded-2xl p-4">
+                      <div className="font-black text-red-700 text-base mb-1">什麼是矮小症？</div>
+                      <p className="text-sm text-red-700 leading-relaxed">
+                        矮小症（Short Stature）是指身高低於同齡同性別兒童第3百分位，或每年生長速度少於4厘米。成因包括遺傳、營養不良、內分泌疾病、慢性疾病等。
+                      </p>
+                    </div>
+                    <div className="space-y-3">
+                      <div className="bg-orange-50 border border-orange-200 rounded-2xl p-4">
+                        <div className="font-bold text-orange-700 text-sm mb-1">⚠️ 警示信號</div>
+                        <ul className="text-sm text-orange-700 space-y-1 leading-relaxed">
+                          <li>• 身高低於同齡同性別第3百分位</li>
+                          <li>• 每年身高增長少於4厘米</li>
+                          <li>• 父母身高正常，但孩子身高明顯偏矮</li>
+                          <li>• 身高百分位持續下滑</li>
+                        </ul>
+                      </div>
+                      <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4">
+                        <div className="font-bold text-blue-700 text-sm mb-1">🔬 建議檢查</div>
+                        <ul className="text-sm text-blue-700 space-y-1 leading-relaxed">
+                          <li>• 左手X光測骨齡（評估生長空間）</li>
+                          <li>• 甲狀腺功能及生長激素檢測</li>
+                          <li>• 血液常規、維生素D、鈣磷檢測</li>
+                          <li>• 兒童內分泌專科評估</li>
+                        </ul>
+                      </div>
+                      <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4">
+                        <div className="font-bold text-emerald-700 text-sm mb-1">💊 治療選項</div>
+                        <p className="text-sm text-emerald-700 leading-relaxed">
+                          若確診生長激素缺乏，可考慮生長激素治療（需專科醫生處方）。研究顯示及早治療效果更佳，建議女孩骨齡14歲、男孩骨齡16歲前評估。
+                        </p>
+                      </div>
+                      <div className="bg-purple-50 border border-purple-200 rounded-2xl p-4">
+                        <div className="font-bold text-purple-700 text-sm mb-1">📅 及時就醫</div>
+                        <p className="text-sm text-purple-700 leading-relaxed">
+                          若發現孩子生長緩慢，建議儘早諮詢兒童內分泌科或生長發育專科，切勿自行服用成人生長激素或不明保健品。
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setShowISSModal(false);
+                        window.open("https://wa.me/85251234567?text=" + encodeURIComponent("你好，我想為孩子預約生長發育專科諮詢。"), "_blank");
+                      }}
+                      className="w-full bg-gradient-to-r from-red-500 to-pink-500 text-white py-3 rounded-2xl font-black text-base shadow-lg hover:shadow-xl transition-all"
+                    >
+                      📞 立即預約專科諮詢
                     </button>
                   </div>
                 </div>
