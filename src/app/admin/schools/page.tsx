@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Plus, Pencil, Trash2, Search, Filter, ChevronDown } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, Filter, ChevronDown, ImageIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -36,6 +36,16 @@ export default function SchoolsPage() {
 
   const [deleteTarget, setDeleteTarget] = useState<School | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
+
+  const [importing, setImporting] = useState(false);
+  const [importProgress, setImportProgress] = useState({
+    total: 0,
+    processed: 0,
+    updated: 0,
+    skipped: 0,
+    failed: 0,
+    withoutPhotos: 0,
+  });
 
   const fetchSchools = useCallback(async () => {
     setLoading(true);
@@ -122,6 +132,45 @@ export default function SchoolsPage() {
     }
   };
 
+  // Load photo import status
+  useEffect(() => {
+    const checkStatus = async () => {
+      try {
+        const res = await fetch("/api/schools/import-photos");
+        if (res.ok) {
+          const data = await res.json();
+          setImportProgress(prev => ({
+            ...prev,
+            total: data.total,
+            withoutPhotos: data.withoutPhotos,
+          }));
+        }
+      } catch {
+        // Ignore errors
+      }
+    };
+    checkStatus();
+  }, []);
+
+  const handleImportPhotos = async () => {
+    if (!confirm(`確定要為 ${importProgress.withoutPhotos} 間學校自動導入相片嗎？\n\n這會通過 Google Places 搜索學校圖片並上傳到 Storage。`)) return;
+    setImporting(true);
+    try {
+      const res = await fetch("/api/schools/import-photos?force=false", { method: "POST" });
+      const data = await res.json();
+      if (data.success) {
+        alert(`導入完成！\n✅ 更新: ${data.progress.updated}\n⏭️ 跳過: ${data.progress.skipped}\n❌ 失敗: ${data.progress.failed}`);
+        fetchSchools();
+      } else {
+        alert(`導入失敗: ${data.message}`);
+      }
+    } catch (err) {
+      alert("導入失敗，請稍後再試。");
+    } finally {
+      setImporting(false);
+    }
+  };
+
   // Unique districts for filter
   const districts = [...new Set(schools.map((s) => s.district).filter(Boolean))].sort();
 
@@ -132,10 +181,15 @@ export default function SchoolsPage() {
           <h1 className="text-2xl font-black text-gray-900">學校管理</h1>
           <p className="text-gray-500 mt-1">共 {schools.length} 間學校</p>
         </div>
-        <Button onClick={openAdd}>
-          <Plus className="w-4 h-4" />
-          新增學校
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="secondary" onClick={handleImportPhotos} disabled={importing}>
+            {importing ? `導入中 (${importProgress.processed}/${importProgress.total})...` : `📷 自動導入相片 (${importProgress.withoutPhotos}間未完成)`}
+          </Button>
+          <Button onClick={openAdd}>
+            <Plus className="w-4 h-4" />
+            新增學校
+          </Button>
+        </div>
       </div>
 
       {/* Filters */}
