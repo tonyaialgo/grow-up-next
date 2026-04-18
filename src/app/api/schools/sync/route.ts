@@ -76,9 +76,9 @@ export async function GET() {
 export async function POST() {
   const startTime = Date.now();
   let logId: number | null = null;
+  const supabase = createAdminClient();
 
   try {
-    const supabase = createAdminClient();
 
     // Record sync start
     const { data: logRecord } = await supabase
