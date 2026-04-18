@@ -3,7 +3,8 @@
 import { useState, useRef } from "react";
 
 import MainLayout from "@/components/MainLayout";
-import { Activity, ArrowRight, Shield, Loader2, ChevronLeft, Download, Share2 } from "lucide-react";
+import { getOrCreateClientUserId } from "@/lib/ai/client-user-id";
+import { Activity, ArrowRight, Shield, Loader2, ChevronLeft, Download, Share2, Sparkles } from "lucide-react";
 
 // HK Growth Chart Data (Boys 3-18 years) - Height-for-age percentiles (cm)
 const BOYS_HEIGHT = {
@@ -365,6 +366,9 @@ export default function AssessmentPage() {
   const [showShortStatureAlert, setShowShortStatureAlert] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [showISSModal, setShowISSModal] = useState(false);
+  const [aiInterpretation, setAiInterpretation] = useState("");
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState("");
 
   // Mark card as ready for capture after it renders
   const handleAnalyze = async () => {
@@ -457,6 +461,51 @@ export default function AssessmentPage() {
       URL.revokeObjectURL(url);
     } finally {
       setDownloading(false);
+    }
+  };
+
+  const fetchAiInterpretation = async () => {
+    if (!result) return;
+    setAiLoading(true);
+    setAiError("");
+    setAiInterpretation("");
+    try {
+      const payload = {
+        age: Number(age),
+        gender,
+        heightCm: Number(height),
+        weightKg: Number(weight),
+        bmi: result.bmi,
+        heightPercentile: result.heightPercentile,
+        heightStatus: result.heightStatus,
+        expectedHeightCm: result.expectedHeight,
+        heightGapCm: result.heightGap,
+        bmiStatus: result.bmiInfo.status,
+        isShortStatureRisk: result.isShortStature,
+        parentHeightsCm: {
+          father: Number(fatherHeight),
+          mother: Number(motherHeight),
+        },
+        recommendations: result.recommendations,
+      };
+      const res = await fetch("/api/ai/growth-report", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: getOrCreateClientUserId(),
+          payload,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setAiError(data.error || "AI 解讀失敗");
+        return;
+      }
+      setAiInterpretation(data.markdown || "");
+    } catch {
+      setAiError("網絡錯誤");
+    } finally {
+      setAiLoading(false);
     }
   };
 
@@ -643,6 +692,40 @@ export default function AssessmentPage() {
                   <span>媽媽 {motherHeight}cm</span>
                 </div>
               </div>
+            </div>
+
+            {/* AI 成長解讀 */}
+            <div className="rounded-3xl border-2 border-violet-100 bg-white p-6 shadow-xl print:hidden">
+              <div className="mb-3 flex items-center gap-2 font-black text-gray-900">
+                <Sparkles className="h-5 w-5 text-violet-600" />
+                AI 成長報告解讀
+              </div>
+              <p className="mb-4 text-sm font-medium text-gray-600">
+                以 AI 將量表結果整理成易懂說明與行動建議（非醫療診斷）。
+              </p>
+              <button
+                type="button"
+                onClick={fetchAiInterpretation}
+                disabled={aiLoading}
+                className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-violet-600 to-indigo-600 py-3.5 font-black text-white shadow-lg transition hover:opacity-95 disabled:opacity-50"
+              >
+                {aiLoading ? (
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                ) : (
+                  <Sparkles className="h-5 w-5" />
+                )}
+                {aiLoading ? "生成中…" : "生成 AI 解讀與行動建議"}
+              </button>
+              {aiError && (
+                <p className="mt-3 rounded-xl bg-red-50 p-3 text-sm font-medium text-red-700">
+                  {aiError}
+                </p>
+              )}
+              {aiInterpretation && (
+                <div className="mt-4 max-h-96 overflow-y-auto whitespace-pre-wrap rounded-2xl border border-violet-100 bg-violet-50/40 p-4 text-sm font-medium leading-relaxed text-gray-800">
+                  {aiInterpretation}
+                </div>
+              )}
             </div>
 
             {/* 1. 身高百分位 */}

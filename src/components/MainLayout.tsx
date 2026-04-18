@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { GraduationCap, Heart, Brain, BarChart3, Menu, X, Home } from "lucide-react";
+import { GraduationCap, Heart, Brain, BarChart3, Menu, X, Home, Sparkles } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 
@@ -12,6 +12,7 @@ const navItems = [
   { href: "/health", label: "健康中心", icon: Heart },
   { href: "/wellbeing", label: "心靈成長", icon: Brain },
   { href: "/assessment", label: "AI評估", icon: BarChart3 },
+  { href: "/ai", label: "AI 助手", icon: Sparkles },
 ];
 
 export default function MainLayout({

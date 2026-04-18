@@ -206,6 +206,11 @@ grow-up-next/
    - `NEXT_PUBLIC_SUPABASE_URL`
    - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
    - `SUPABASE_SERVICE_ROLE_KEY`
+   - **AI (LLM)** — 至少設定一組供應商金鑰，並在 Supabase 執行 `supabase/migrations/002_ai_platform.sql` 建立 `ai_llm_config` / `ai_prompts` 等表：
+     - `OPENROUTER_API_KEY`（若使用 OpenRouter；推薦與後台「LLM 設定」預設一致）
+     - 或 `OPENAI_API_KEY`（OpenAI 相容 API）
+     - 或 `GOOGLE_GENERATIVE_AI_API_KEY`（或 `GEMINI_API_KEY`，若後台「供應商」選 Gemini）
+     - 可選：`AI_FREE_DAILY_LIMIT`（每日每用戶 LLM 呼叫上限，預設 `5`）
 4. Deploy
 
 ### Other platforms (Netlify, Railway, etc.)
@@ -235,6 +240,14 @@ Set the same environment variables in your hosting dashboard.
 | POST | `/api/guides` | Create guide |
 | PUT | `/api/guides/[id]` | Update guide |
 | DELETE | `/api/guides/[id]` | Delete guide |
+| POST | `/api/ai/academic-advisor` | AI 升學顧問（需 LLM 與 DB 設定） |
+| POST | `/api/ai/growth-report` | AI 成長報告解讀 |
+| POST | `/api/ai/parent-chat` | 家長支援聊天 |
+| POST | `/api/ai/assistant` | 全站導航助手（輕量 RAG） |
+| GET/PUT | `/api/admin/ai/llm-config` | 管理員：LLM 供應商與模型 |
+| GET | `/api/admin/ai/prompts` | 管理員：提示詞列表 |
+| GET/PUT | `/api/admin/ai/prompts/[featureKey]` | 管理員：編輯提示詞 |
+| POST | `/api/admin/ai/prompts/[featureKey]/test` | 管理員：測試提示詞 |
 
 ---
 
