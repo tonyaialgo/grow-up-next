@@ -1,3 +1,5 @@
+"use client";
+
 import MainLayout from "@/components/MainLayout";
 import { Heart, Brain, Activity, Shield, ArrowRight, Sparkles, Utensils, Moon, TrendingUp, Smile, ChevronDown } from "lucide-react";
 import Link from "next/link";
