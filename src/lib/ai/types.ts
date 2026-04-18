@@ -1,4 +1,8 @@
-export type LlmProvider = "openai" | "openrouter" | "gemini";
+export type LlmProvider =
+  | "openai"
+  | "openrouter"
+  | "gemini"
+  | "deepseek";
 
 export interface LlmMessage {
   role: "system" | "user" | "assistant";

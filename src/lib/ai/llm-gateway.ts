@@ -21,6 +21,10 @@ function getGeminiKey(): string | undefined {
   return process.env.GOOGLE_GENERATIVE_AI_API_KEY || process.env.GEMINI_API_KEY;
 }
 
+function getDeepSeekKey(): string | undefined {
+  return process.env.DEEPSEEK_API_KEY;
+}
+
 async function callGemini(
   model: string,
   messages: LlmMessage[],
@@ -113,6 +117,51 @@ export async function callLlm(
     );
   }
 
+  if (options.provider === "deepseek") {
+    const apiKey = getDeepSeekKey();
+    if (!apiKey) {
+      throw new Error("Missing DEEPSEEK_API_KEY");
+    }
+    const baseUrl = "https://api.deepseek.com/v1";
+    const res = await fetch(`${baseUrl}/chat/completions`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: options.model,
+        messages: options.messages,
+        temperature,
+        max_tokens: maxOutputTokens,
+      }),
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(`DeepSeek HTTP ${res.status}: ${errText.slice(0, 500)}`);
+    }
+
+    const data = (await res.json()) as {
+      choices?: { message?: { content?: string } }[];
+      usage?: {
+        prompt_tokens?: number;
+        completion_tokens?: number;
+        total_tokens?: number;
+      };
+    };
+
+    const text = data.choices?.[0]?.message?.content ?? "";
+    return {
+      text,
+      promptTokens: data.usage?.prompt_tokens,
+      completionTokens: data.usage?.completion_tokens,
+      totalTokens: data.usage?.total_tokens,
+      provider: "deepseek",
+      model: options.model,
+    };
+  }
+
   const baseUrl =
     options.provider === "openrouter"
       ? "https://openrouter.ai/api/v1"
@@ -178,3 +227,4 @@ export async function callLlm(
     model: options.model,
   };
 }
+
