@@ -11,8 +11,9 @@ import {
   BookOpen,
   LogOut,
   Menu,
-  X,
   ChevronLeft,
+  Sparkles,
+  Cpu,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -22,6 +23,8 @@ const adminNavItems = [
   { href: "/admin/events", label: "日曆活動", icon: Calendar },
   { href: "/admin/tips", label: "學習技巧", icon: Lightbulb },
   { href: "/admin/guides", label: "升學指南", icon: BookOpen },
+  { href: "/admin/ai/llm", label: "AI · LLM", icon: Cpu },
+  { href: "/admin/ai/prompts", label: "AI · 提示詞", icon: Sparkles },
 ];
 
 export default function AdminLayout({
