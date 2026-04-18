@@ -167,10 +167,25 @@ export default function SchoolsPage() {
   const [schools, setSchools] = useState<typeof SAMPLE_SCHOOLS>([]);
 
   useEffect(() => {
-    fetch('https://growup.hk/api/schools', { cache: 'no-store' })
-      .then(res => res.json())
-      .then(data => {
+    const fetchSchools = async () => {
+      try {
+        // Use window.location.origin to construct absolute URL for client-side
+        const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+        const res = await fetch(`${baseUrl}/api/schools`, { 
+          cache: 'no-store',
+          credentials: 'include'
+        });
+        
+        if (!res.ok) {
+          console.error('[Schools] HTTP error:', res.status, res.statusText);
+          setSchools(SAMPLE_SCHOOLS);
+          return;
+        }
+        
+        const data = await res.json();
+        
         if (Array.isArray(data) && data.length > 0) {
+          console.log('[Schools] Loaded', data.length, 'schools from API');
           const transformed = data.map((s: any) => ({
             id: s.id,
             name: s.name || s.name_en || '未知學校',
@@ -185,10 +200,16 @@ export default function SchoolsPage() {
           }));
           setSchools(transformed);
         } else {
+          console.warn('[Schools] Empty or invalid API response, using sample data');
           setSchools(SAMPLE_SCHOOLS);
         }
-      })
-      .catch(() => setSchools(SAMPLE_SCHOOLS));
+      } catch (err) {
+        console.error('[Schools] Fetch error:', err);
+        setSchools(SAMPLE_SCHOOLS);
+      }
+    };
+    
+    fetchSchools();
   }, []);
 
   const filteredSchools = schools.filter((school) => {
