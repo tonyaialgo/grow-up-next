@@ -1,9 +1,14 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 
 import MainLayout from "@/components/MainLayout";
 import { getOrCreateClientUserId } from "@/lib/ai/client-user-id";
+import {
+  clearStoredAiSessionId,
+  getStoredAiSessionId,
+  setStoredAiSessionId,
+} from "@/lib/ai/chat-session-storage";
 import { Activity, ArrowRight, Shield, Loader2, ChevronLeft, Download, Share2, Sparkles } from "lucide-react";
 
 // HK Growth Chart Data (Boys 3-18 years) - Height-for-age percentiles (cm)
@@ -366,9 +371,18 @@ export default function AssessmentPage() {
   const [showShortStatureAlert, setShowShortStatureAlert] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [showISSModal, setShowISSModal] = useState(false);
-  const [aiInterpretation, setAiInterpretation] = useState("");
+
+  useEffect(() => {
+    const sid = getStoredAiSessionId("growth_interpreter");
+    if (sid) setGrowthSessionId(sid);
+  }, []);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState("");
+  const [growthSessionId, setGrowthSessionId] = useState<string | null>(null);
+  const [growthFollowUp, setGrowthFollowUp] = useState("");
+  const [growthChat, setGrowthChat] = useState<
+    { role: "user" | "assistant"; content: string }[]
+  >([]);
 
   // Mark card as ready for capture after it renders
   const handleAnalyze = async () => {
@@ -468,7 +482,6 @@ export default function AssessmentPage() {
     if (!result) return;
     setAiLoading(true);
     setAiError("");
-    setAiInterpretation("");
     try {
       const payload = {
         age: Number(age),
@@ -493,6 +506,7 @@ export default function AssessmentPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           userId: getOrCreateClientUserId(),
+          sessionId: growthSessionId ?? undefined,
           payload,
         }),
       });
@@ -501,12 +515,59 @@ export default function AssessmentPage() {
         setAiError(data.error || "AI 解讀失敗");
         return;
       }
-      setAiInterpretation(data.markdown || "");
+      const sid = data.sessionId as string | undefined;
+      if (sid) {
+        setGrowthSessionId(sid);
+        setStoredAiSessionId("growth_interpreter", sid);
+      }
+      const md = data.markdown || "";
+      setGrowthChat([{ role: "assistant", content: md }]);
     } catch {
       setAiError("網絡錯誤");
     } finally {
       setAiLoading(false);
     }
+  };
+
+  const sendGrowthFollowUp = async () => {
+    const q = growthFollowUp.trim();
+    if (!q || !growthSessionId) return;
+    setAiLoading(true);
+    setAiError("");
+    try {
+      const res = await fetch("/api/ai/growth-report", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: getOrCreateClientUserId(),
+          sessionId: growthSessionId,
+          message: q,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setAiError(data.error || "AI 回覆失敗");
+        return;
+      }
+      const md = data.markdown || "";
+      setGrowthChat((prev) => [
+        ...prev,
+        { role: "user", content: q },
+        { role: "assistant", content: md },
+      ]);
+      setGrowthFollowUp("");
+    } catch {
+      setAiError("網絡錯誤");
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  const resetGrowthAiChat = () => {
+    clearStoredAiSessionId("growth_interpreter");
+    setGrowthSessionId(null);
+    setGrowthChat([]);
+    setGrowthFollowUp("");
   };
 
   const handleShare = async () => {
@@ -721,9 +782,54 @@ export default function AssessmentPage() {
                   {aiError}
                 </p>
               )}
-              {aiInterpretation && (
-                <div className="mt-4 max-h-96 overflow-y-auto whitespace-pre-wrap rounded-2xl border border-violet-100 bg-violet-50/40 p-4 text-sm font-medium leading-relaxed text-gray-800">
-                  {aiInterpretation}
+              {growthChat.length > 0 && (
+                <div className="mt-4 max-h-80 space-y-3 overflow-y-auto rounded-2xl border border-violet-100 bg-violet-50/40 p-4 text-sm">
+                  {growthChat.map((m, i) => (
+                    <div
+                      key={`${m.role}-${i}`}
+                      className={
+                        m.role === "user"
+                          ? "ml-6 rounded-2xl bg-white p-3 font-medium text-gray-800 shadow-sm"
+                          : "mr-6 whitespace-pre-wrap rounded-2xl bg-violet-100/80 p-3 font-medium leading-relaxed text-gray-800"
+                      }
+                    >
+                      <span className="mb-1 block text-xs font-bold text-violet-600/80">
+                        {m.role === "user" ? "你" : "AI"}
+                      </span>
+                      {m.content}
+                    </div>
+                  ))}
+                </div>
+              )}
+              {growthSessionId && (
+                <div className="mt-4 space-y-2">
+                  <label className="block text-xs font-bold text-gray-600">
+                    追問（多輪對話，會沿用本次評估數據）
+                  </label>
+                  <textarea
+                    value={growthFollowUp}
+                    onChange={(e) => setGrowthFollowUp(e.target.value)}
+                    rows={3}
+                    placeholder="例如：飲食上有什麼要調整？"
+                    className="w-full rounded-2xl border border-violet-200 px-4 py-3 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-violet-400"
+                  />
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={sendGrowthFollowUp}
+                      disabled={aiLoading || !growthFollowUp.trim()}
+                      className="rounded-xl bg-violet-700 px-4 py-2 text-sm font-black text-white disabled:opacity-50"
+                    >
+                      送出追問
+                    </button>
+                    <button
+                      type="button"
+                      onClick={resetGrowthAiChat}
+                      className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-bold text-gray-700"
+                    >
+                      清除對話
+                    </button>
+                  </div>
                 </div>
               )}
             </div>

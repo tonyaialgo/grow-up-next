@@ -1,10 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { anonymizeForLlm } from "@/lib/ai/anonymize";
+import {
+  appendChatMessage,
+  createChatSession,
+  listSessionMessages,
+  verifySession,
+} from "@/lib/ai/chat-store";
 import { clampOutput, clampText } from "@/lib/ai/content-filter";
+import { buildConversationSummary, turnsToLlmMessages } from "@/lib/ai/conversation";
 import { getLlmConfig } from "@/lib/ai/llm-config";
 import { callLlm } from "@/lib/ai/llm-gateway";
 import { applyTemplate, getActivePrompt } from "@/lib/ai/prompt-store";
 import { checkDailyQuota, logUsage } from "@/lib/ai/quota";
+import { buildSiteRagContext } from "@/lib/ai/rag-context";
+import type { LlmMessage } from "@/lib/ai/types";
 
 const DAILY_LIMIT = Number(process.env.AI_FREE_DAILY_LIMIT ?? "5");
 
@@ -27,14 +36,31 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const message = clampText(
+    let sessionId =
+      typeof body.sessionId === "string" && body.sessionId.trim()
+        ? body.sessionId.trim()
+        : null;
+    if (sessionId) {
+      const ok = await verifySession(sessionId, userId, "parent_support");
+      if (!ok) {
+        return NextResponse.json({ error: "無效的對話 session" }, { status: 400 });
+      }
+    } else {
+      sessionId = await createChatSession(userId, "parent_support");
+    }
+
+    const userMessage = clampText(
       anonymizeForLlm(String(body.message ?? "")),
       3000
     );
-    const summary = clampText(
-      anonymizeForLlm(String(body.summary ?? "")),
-      1500
-    );
+    if (!userMessage.trim()) {
+      return NextResponse.json({ error: "訊息不可為空" }, { status: 400 });
+    }
+
+    const priorTurns = await listSessionMessages(sessionId);
+    const summary = buildConversationSummary(priorTurns);
+    const ragQuery = `${userMessage}\n${summary}`;
+    const ragContext = await buildSiteRagContext(ragQuery, 6000);
 
     const promptRow = await getActivePrompt("parent_support");
     const system =
@@ -42,8 +68,12 @@ export async function POST(req: NextRequest) {
       "你是具同理心的育兒支援助理。繁體中文。非治療師。";
     const userPrompt = applyTemplate(
       promptRow?.user_template ??
-        "【家長訊息】\n{{message}}\n\n【摘要】\n{{summary}}",
-      { message, summary: summary || "（無）" }
+        "【家長訊息】\n{{message}}\n\n【摘要】\n{{summary}}\n\n【平台摘要】\n{{rag_context}}",
+      {
+        message: userMessage,
+        summary: summary || "（無）",
+        rag_context: ragContext,
+      }
     );
 
     const cfg = await getLlmConfig();
@@ -54,19 +84,25 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const chatMessages = turnsToLlmMessages(priorTurns, userPrompt);
+    const messages: LlmMessage[] = [
+      { role: "system", content: system },
+      ...chatMessages,
+    ];
+
     const result = await callLlm({
       provider: cfg.provider,
       model: cfg.model,
       openaiBaseUrl: cfg.openai_base_url,
-      messages: [
-        { role: "system", content: system },
-        { role: "user", content: userPrompt },
-      ],
+      messages,
       maxOutputTokens: 2048,
       temperature: 0.65,
     });
 
     const text = clampOutput(result.text);
+
+    await appendChatMessage(sessionId, "user", userMessage);
+    await appendChatMessage(sessionId, "assistant", text);
 
     await logUsage({
       userId,
@@ -80,6 +116,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       markdown: text,
+      sessionId,
       usage: {
         promptTokens: result.promptTokens,
         completionTokens: result.completionTokens,

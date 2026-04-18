@@ -38,25 +38,20 @@ async function callGemini(
 
   const system = messages.find((m) => m.role === "system")?.content ?? "";
   const rest = messages.filter((m) => m.role !== "system");
-  /** Gemini REST: first content block must be role "user" */
-  const contents =
-    rest.length === 1 && rest[0].role === "user"
-      ? [
-          {
-            role: "user" as const,
-            parts: [
-              {
-                text: system
-                  ? `${system}\n\n${rest[0].content}`
-                  : rest[0].content,
-              },
-            ],
-          },
-        ]
-      : rest.map((m) => ({
-          role: m.role === "assistant" ? ("model" as const) : ("user" as const),
-          parts: [{ text: m.content }],
-        }));
+  if (rest.length === 0) {
+    throw new Error("Gemini: no user/assistant messages");
+  }
+  /** Gemini REST: multi-turn; system is prepended to the first user turn only */
+  const contents = rest.map((m, idx) => {
+    let text = m.content;
+    if (idx === 0 && m.role === "user" && system) {
+      text = `${system}\n\n${text}`;
+    }
+    return {
+      role: m.role === "assistant" ? ("model" as const) : ("user" as const),
+      parts: [{ text }],
+    };
+  });
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
     model

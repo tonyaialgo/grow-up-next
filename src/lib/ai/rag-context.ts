@@ -11,6 +11,23 @@ function scoreText(query: string, text: string): number {
   return s;
 }
 
+export async function buildWellbeingRagContext(
+  query: string,
+  maxChars: number = 6000
+): Promise<string> {
+  const q = `${query} 健康 兒童 生長 身高 BMI 情緒 心理 睡眠 營養 心靈`;
+  return buildSiteRagContext(q, maxChars);
+}
+
+/** 升學顧問：與 buildSiteRagContext 相同，語意上強調學業與日曆。 */
+export async function buildAcademicRagContext(
+  userContext: string,
+  maxChars: number = 6000
+): Promise<string> {
+  const q = `${userContext} 升學 學校 派位 面試 申請 日曆 小貼士 指南`;
+  return buildSiteRagContext(q, maxChars);
+}
+
 export async function buildSiteRagContext(
   query: string,
   maxChars: number = 6000
@@ -18,10 +35,15 @@ export async function buildSiteRagContext(
   const supabase = createAdminClient();
   const chunks: { title: string; href: string; body: string }[] = [];
 
-  const [tipsRes, guidesRes, schoolsRes] = await Promise.all([
+  const [tipsRes, guidesRes, schoolsRes, calRes] = await Promise.all([
     supabase.from("study_tips").select("title, description, items").limit(30),
     supabase.from("admissions").select("title, description, topics").limit(30),
     supabase.from("schools").select("name, district, type, level, features").limit(40),
+    supabase
+      .from("calendar_events")
+      .select("title, date, description, level, urgent")
+      .order("date", { ascending: true })
+      .limit(60),
   ]);
 
   if (tipsRes.data) {
@@ -66,6 +88,25 @@ export async function buildSiteRagContext(
         title: row.name,
         href: "/schools",
         body: `${row.district} ${row.type} ${row.level} ${(row.features ?? []).join(" ")}`,
+      });
+    }
+  }
+
+  if (calRes.data) {
+    for (const row of calRes.data as {
+      title: string;
+      date: string;
+      description: string | null;
+      level: string;
+      urgent: boolean;
+    }[]) {
+      const body = `${row.date} ${row.level} ${row.description ?? ""} ${
+        row.urgent ? "重要" : ""
+      }`;
+      chunks.push({
+        title: row.title,
+        href: "/academic",
+        body,
       });
     }
   }

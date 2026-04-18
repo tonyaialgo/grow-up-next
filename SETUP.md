@@ -206,7 +206,7 @@ grow-up-next/
    - `NEXT_PUBLIC_SUPABASE_URL`
    - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
    - `SUPABASE_SERVICE_ROLE_KEY`
-   - **AI (LLM)** — 至少設定一組供應商金鑰，並在 Supabase 執行 `supabase/migrations/002_ai_platform.sql` 建立 `ai_llm_config` / `ai_prompts` 等表：
+   - **AI (LLM)** — 至少設定一組供應商金鑰，並在 Supabase 依序執行 `supabase/migrations/002_ai_platform.sql`（提示詞與 LLM 設定）、`supabase/migrations/003_ai_chat_sessions.sql`（多輪對話 session / 訊息表，以及提示詞模板更新）：
      - `OPENROUTER_API_KEY`（若使用 OpenRouter；推薦與後台「LLM 設定」預設一致）
      - 或 `DEEPSEEK_API_KEY`（若後台「供應商」選 DeepSeek 原生 API）
      - 或 `OPENAI_API_KEY`（OpenAI 相容 API）
