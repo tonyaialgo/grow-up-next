@@ -35,7 +35,7 @@ export async function PUT(req: NextRequest) {
       ? String(body.openai_base_url).trim()
       : null;
 
-    if (!["openai", "openrouter", "gemini"].includes(provider)) {
+    if (!["openai", "openrouter", "gemini", "deepseek"].includes(provider)) {
       return NextResponse.json({ error: "無效的 provider" }, { status: 400 });
     }
     if (!model) {
