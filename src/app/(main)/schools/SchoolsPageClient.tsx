@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import { ChevronDown, Filter, GraduationCap, MapPin, Search } from "lucide-react";
 import type { SchoolCardData } from "./school-card-data";
 import {
@@ -241,27 +240,22 @@ export default function SchoolsPageClient({
                   className="group overflow-hidden rounded-3xl border-2 border-transparent bg-white shadow-xl transition-all duration-500 hover:border-blue-100 hover:shadow-2xl"
                 >
                   <div className="relative h-48 overflow-hidden">
-                    {school.image ? (
-                      <>
-                        <Image
-                          src={school.image}
-                          alt={school.name}
-                          fill
-                          className="object-cover"
-                          sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                          onError={(e) => {
-                            const target = e.target as HTMLImageElement;
-                            target.style.display = "none";
-                            target.parentElement!.querySelector(".fallback-bg")!.removeAttribute("style");
-                          }}
-                        />
-                        <div className="absolute inset-0 fallback-bg bg-gradient-to-br from-blue-500 to-indigo-600" style={{ display: 'none' }} />
-                      </>
-                    ) : (
-                      <div className="absolute inset-0 bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center">
-                        <GraduationCap className="h-16 w-16 text-white/30" />
-                      </div>
-                    )}
+                    <img
+                      src={school.image}
+                      alt={school.name}
+                      className="absolute inset-0 w-full h-full object-cover"
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        target.style.display = "none";
+                        const fallback = target.nextElementSibling as HTMLElement;
+                        if (fallback) fallback.style.display = "flex";
+                      }}
+                    />
+                    <div
+                      className="absolute inset-0 bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center hidden"
+                    >
+                      <GraduationCap className="h-16 w-16 text-white/30" />
+                    </div>
                     <div className="absolute top-4 left-4 flex gap-2">
                       <span
                         className={`rounded-full px-3 py-1 text-xs font-bold ${getBandingColor(
